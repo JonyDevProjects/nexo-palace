@@ -314,6 +314,88 @@ export async function ingestDocuments(
     if (!requirementIds.has(row.id.replace(/^req:/, ""))) deleteNode(db, row.id);
   }
 
+  // --- Reconstruir las decisiones registradas --------------------------------
+  //
+  // `memory_record_decision` crea el nodo de decisión al registrarlo, pero el
+  // nodo vive en la base, no en el repositorio. Si la base se reconstruye
+  // (índice nuevo, base borrada, otro equipo), las decisiones dejarían de
+  // estar en el grafo aunque su texto siga en el fichero de decisiones.
+  //
+  // El fichero de decisiones es la fuente de verdad: se reconstruyen desde él
+  // los nodos que falten, para que el índice sea reproducible a partir del
+  // repositorio.
+  const decisions = parseDecisionFile(parsedFiles);
+  for (const decision of decisions) {
+    if (decision.episodeId) {
+      const exists = db.prepare("SELECT id FROM nodes WHERE id = ?").get(decision.episodeId);
+      if (exists) continue;
+    }
+
+    upsertNode(db, {
+      id: decision.id,
+      type: "decision",
+      path: decision.path,
+      name: decision.title.slice(0, 80),
+      status: "accepted",
+      title: decision.title.slice(0, 120),
+      meta: { context: decision.context, tags: decision.tags, relatedFiles: decision.relatedFiles },
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Fragmento indexable: la decisión debe poder recuperarse por búsqueda.
+    // El formato es el mismo que escribe `memory_record_decision`, para que
+    // una decisión reconstruida y una recién registrada se comporten igual.
+    const content = [
+      `## Decisión ${decision.date} — ${decision.tags.join(", ") || "general"}`,
+      "",
+      `**Contexto:** ${decision.context}`,
+      "",
+      `**Decisión:** ${decision.title}`,
+      decision.relatedFiles.length > 0
+        ? `\n**Archivos relacionados:** ${decision.relatedFiles.join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const chunkId = `chunk:${decision.id}`;
+    replaceChunks(db, decision.id, [
+      {
+        id: chunkId,
+        nodeId: decision.id,
+        seq: 0,
+        content,
+        headerPath: "Decisión registrada",
+        requirementIds: [],
+        contentHash: hashOf(content),
+      },
+    ]);
+    chunkCount++;
+
+    if (content.length >= MIN_EMBED_CHARS && needsEmbedding(db, { id: chunkId, contentHash: hashOf(content) })) {
+      const [vector] = await provider.embed([content]);
+      if (vector) {
+        insertVector(db, chunkId, vector);
+        vectorCount++;
+      }
+    }
+
+    for (const related of decision.relatedFiles) {
+      const clean = related.replace(/^\.\//, "");
+      const target = db.prepare("SELECT id FROM nodes WHERE path = ?").get(clean) as
+        | { id: string }
+        | undefined;
+      if (!target) continue;
+      upsertEdge(db, {
+        sourceId: decision.id,
+        targetId: target.id,
+        relation: "references",
+        confidence: 1,
+        meta: { via: "decision" },
+      });
+    }
+  }
+
   setMeta(db, "indexed_at", new Date().toISOString());
   setMeta(db, "doc_provider", provider.name);
 
@@ -328,6 +410,89 @@ export async function ingestDocuments(
     dim: provider.dim,
     errors,
   };
+}
+
+/**
+ * Una decisión reconstruida desde el fichero de decisiones del proyecto.
+ */
+interface ParsedDecision {
+  /** Identificador del nodo en el grafo. */
+  id: string;
+  /** Identificador del episodio, si el bloque lo declara. */
+  episodeId: string | null;
+  /** Ruta del fichero donde vive la decisión. */
+  path: string;
+  /** Título de la decisión. */
+  title: string;
+  /** Contexto que la originó. */
+  context: string;
+  /** Fecha de la decisión, tal como aparece en el fichero. */
+  date: string;
+  /** Etiquetas de la decisión. */
+  tags: string[];
+  /** Archivos relacionados. */
+  relatedFiles: string[];
+}
+
+/**
+ * Reconstruye las decisiones a partir del fichero de decisiones del proyecto.
+ *
+ * El formato es el que escribe `memory_record_decision`:
+ *
+ *   ### 2026-11-12 — etiquetas
+ *   * **Contexto:** ...
+ *   * **Decisión:** ...
+ *   * **Archivos relacionados:** a.ts, b.ts
+ *   * **Episodio:** `decision:2026-11-12T09-44-18-523Z`
+ */
+function parseDecisionFile(
+  parsedFiles: Array<{ relPath: string; raw: string }>,
+): ParsedDecision[] {
+  const decisions: ParsedDecision[] = [];
+  const decisionsPath = getConfig().decisionsFile;
+
+  for (const file of parsedFiles) {
+    if (file.relPath !== decisionsPath) continue;
+
+    // Cada bloque empieza con un encabezado `### fecha — etiquetas`.
+    const blocks = file.raw.split(/^###\s+/m).slice(1);
+    for (const block of blocks) {
+      const lines = block.split("\n");
+      const header = lines[0] ?? "";
+      const date = header.split("—")[0]?.trim() ?? "";
+      const tagPart = header.split("—")[1]?.trim() ?? "";
+
+      const context = /\*\*Contexto:\*\*\s*(.+)/.exec(block)?.[1]?.trim() ?? "";
+      const title = /\*\*Decisi[oó]n:\*\*\s*(.+)/.exec(block)?.[1]?.trim() ?? "";
+      const related = /\*\*Archivos relacionados:\*\*\s*(.+)/.exec(block)?.[1] ?? "";
+      const episodeId = /\*\*Episodio:\*\*\s*`([^`]+)`/.exec(block)?.[1] ?? null;
+
+      if (!title && !context) continue;
+
+      const relatedFiles = related
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean);
+
+      const tags = tagPart
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      decisions.push({
+        id: episodeId ?? `decision:${date}:${title.slice(0, 40)}`,
+        episodeId,
+        path: file.relPath,
+        title: title || context,
+        context,
+        date,
+        tags,
+        relatedFiles,
+      });
+    }
+  }
+
+  return decisions;
 }
 
 /**

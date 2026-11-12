@@ -55,6 +55,19 @@ export interface ParsedDoc {
 }
 
 /**
+ * Alias de prefijos de trazabilidad: forma alternativa → forma canónica.
+ *
+ * `EPIC 01` es la variante en encabezados de `EPC-01`, y ambos deben acabar
+ * en el mismo nodo del grafo. El destino solo se aplica si el proyecto
+ * declara ese prefijo canónico.
+ */
+const ALIASES: Record<string, string> = {
+  EPIC: "EPC",
+  HISTORY: "US",
+  STORY: "US",
+};
+
+/**
  * Expresiones regulares de IDs de trazabilidad.
  *
  * Los prefijos son configurables por proyecto (`requirementPrefixes` en
@@ -67,8 +80,11 @@ export interface ParsedDoc {
 function requirementRegex(): RegExp {
   const prefixes = getConfig().requirementPrefixes;
   const escaped = prefixes.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  // `EPIC 01` (con espacio) es la variante en encabezados de `EPC-01`.
-  const extra = prefixes.includes("EPC") ? "|\\bEPIC[\\s-]\\d{1,3}\\b" : "";
+  // Los alias solo se reconocen si su forma canónica está declarada.
+  const aliasPatterns = Object.entries(ALIASES)
+    .filter(([, canonical]) => prefixes.includes(canonical))
+    .map(([alias]) => `\\b${alias}[\\s-]\\d{1,3}\\b`);
+  const extra = aliasPatterns.length > 0 ? `|${aliasPatterns.join("|")}` : "";
   return new RegExp(`\\b(?:${escaped.join("|")})-[A-Z0-9]+\\b${extra}`, "gi");
 }
 
@@ -83,10 +99,8 @@ export function normalizeRequirementId(raw: string): string {
   const upper = raw.trim().toUpperCase().replace(/\s+/g, "-");
   const prefixes = getConfig().requirementPrefixes;
 
-  for (const alias of ["EPIC", "HISTORY", "STORY"]) {
-    if (!prefixes.includes(alias)) continue;
-    const canonical = prefixes.find((p) => p !== alias);
-    if (!canonical) continue;
+  for (const [alias, canonical] of Object.entries(ALIASES)) {
+    if (!prefixes.includes(canonical)) continue;
     const match = new RegExp(`^${alias}-(\\d{1,3})$`).exec(upper);
     if (match) return `${canonical}-${match[1].padStart(2, "0")}`;
   }
