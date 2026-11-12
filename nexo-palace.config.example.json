@@ -1,0 +1,18 @@
+{
+  "$schema": "https://nexo-palace.dev/schema.json",
+
+  "projectName": "mi-proyecto",
+
+  "docs": ["docs"],
+  "tasteDirs": [".commandcode/taste"],
+
+  "codeDirs": ["app", "components", "lib", "tests", "e2e"],
+  "codeExtensions": [".ts", ".tsx", ".js", ".jsx"],
+
+  "requirementPrefixes": ["EPC", "US", "ADR"],
+
+  "decisionsFile": ".commandcode/taste/decisions.md",
+  "dbPath": ".nexo-palace/memory.sqlite3",
+
+  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage"]
+}

@@ -1,0 +1,45 @@
+{
+  "name": "nexo-palace",
+  "version": "0.1.0",
+  "description": "Memoria de proyecto para agentes: índice híbrido (semántico + léxico) y grafo de trazabilidad, expuestos como CLI y servidor MCP.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "bin": {
+    "nexo-palace": "./bin/nexo-palace.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli.ts",
+    "mcp": "node --experimental-strip-types src/server.ts",
+    "test": "node --experimental-strip-types src/test-mcp.ts",
+    "bench": "node --experimental-strip-types src/bench.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "memory",
+    "retrieval",
+    "embeddings",
+    "agents",
+    "knowledge-graph"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "better-sqlite3": "^13.1.1",
+    "sqlite-vec": "^0.1.9",
+    "ts-morph": "^28.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

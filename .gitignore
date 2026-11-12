@@ -1,0 +1,20 @@
+# Dependencias
+node_modules/
+
+# Artefactos locales del motor (índice SQLite, bases de la comparativa)
+.nexo-palace/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Compilación
+dist/
+build/
+*.tsbuildinfo
+
+# Sistema
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
