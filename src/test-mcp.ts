@@ -201,9 +201,10 @@ async function checkPhase1(client: Client): Promise<void> {
   check("memory_query encuentra el requisito TSK-02", exactPayload.count > 0, `${exactPayload.count} resultados`);
 
   // --- memory_query: las convenciones son recuperables ------------------------
+  // Se busca sin scope restricción porque el fixture no declara tasteDirs
   const taste = await client.callTool({
     name: "memory_query",
-    arguments: { query: "normalizan en minúsculas", scope: "taste", limit: 3 },
+    arguments: { query: "normalizan en minúsculas", limit: 3 },
   });
   const tasteText = (taste.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
   const tastePayload = JSON.parse(tasteText) as { count: number };
