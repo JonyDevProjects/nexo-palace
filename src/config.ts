@@ -12,7 +12,7 @@
  *   3. El `nexo-palace.config.json` más cercano por encima del directorio actual.
  *   4. El directorio actual, con los valores por defecto.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 /** Nombre del fichero de configuración del proyecto. */
@@ -76,7 +76,7 @@ const DEFAULT_CONFIG: Omit<PalaceConfig, "root"> = {
   codeDirs: ["src", "lib", "app", "components", "tests", "test", "e2e"],
   codeExtensions: [".ts", ".tsx", ".js", ".jsx"],
   tasteDirs: [],
-  decisionsFile: ".nexo-palace/decisions.md",
+  decisionsFile: "docs/decisions.md",
   dbPath: ".nexo-palace/memory.sqlite3",
   ignoreDirs: [
     "node_modules",
@@ -144,10 +144,41 @@ function basename(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+/**
+ * Directorios estándar donde se almacenan decisiones o convenciones.
+ * Se comprueba su existencia real y se devuelven los que están presentes.
+ */
+const DECISION_DIRS = [".commandcode/taste", "docs/adr", "docs/adrs", "docs/decisions"];
+
+/**
+ * Detecta directorios de decisiones/convencciones existentes en el repositorio
+ * y devuelve solo los que contienen al menos un archivo Markdown.
+ */
+function detectDecisionDirs(root: string): string[] {
+  return DECISION_DIRS.filter((dir) => {
+    const abs = join(root, dir);
+    if (!existsSync(abs)) return false;
+    try {
+      const hasMarkdown = readdirSync(abs).some(
+        (f) => f.toLowerCase().endsWith(".md"),
+      );
+      return hasMarkdown;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** Resuelve la configuración efectiva para una raíz de proyecto. */
 function buildConfig(root: string, raw: RawConfig): PalaceConfig {
   const docs = stringList(raw.docs, DEFAULT_CONFIG.docs);
-  const tasteDirs = stringList(raw.tasteDirs, DEFAULT_CONFIG.tasteDirs);
+  // Direcciones de decisión detectadas + declaradas por el usuario
+  const detected = detectDecisionDirs(root);
+  const userTaste = stringList(raw.tasteDirs, DEFAULT_CONFIG.tasteDirs);
+  // Merge manteniendo orden: user primero, luego detectados no duplicados
+  const merged = [...userTaste, ...detected].filter(
+    (v) => !userTaste.includes(v),
+  );
   const dbPath = (raw.dbPath ?? DEFAULT_CONFIG.dbPath).trim();
   const decisionsFile = (raw.decisionsFile ?? DEFAULT_CONFIG.decisionsFile).trim();
 
@@ -156,7 +187,7 @@ function buildConfig(root: string, raw: RawConfig): PalaceConfig {
     docs,
     codeDirs: stringList(raw.codeDirs, DEFAULT_CONFIG.codeDirs),
     codeExtensions: stringList(raw.codeExtensions, DEFAULT_CONFIG.codeExtensions),
-    tasteDirs,
+    tasteDirs: merged,
     decisionsFile,
     dbPath: dbPath.startsWith("/") ? dbPath : join(root, dbPath),
     ignoreDirs: stringList(raw.ignoreDirs, DEFAULT_CONFIG.ignoreDirs),

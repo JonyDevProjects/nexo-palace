@@ -323,8 +323,9 @@ export async function ingestDocuments(
   //
   // El fichero de decisiones es la fuente de verdad: se reconstruyen desde él
   // los nodos que falten, para que el índice sea reproducible a partir del
-  // repositorio.
-  const decisions = parseDecisionFile(parsedFiles);
+  // repositorio. Se usa parseAsDecisions (Opción C Refinada) que detecta
+  // múltiples formatos y rutas estándar sin acoplarse a CommandCode.
+  const decisions = parseAsDecisions(parsedFiles, getConfig().decisionsFile);
   for (const decision of decisions) {
     if (decision.episodeId) {
       const exists = db.prepare("SELECT id FROM nodes WHERE id = ?").get(decision.episodeId);
@@ -520,4 +521,241 @@ function hashOf(text: string): string {
     hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+// ============================================================================
+// Parser multi-formato para decisiones (Opción C Refinada)
+// ============================================================================
+
+interface RawADR {
+  title: string;
+  context: string;
+  status?: string;
+  tags: string[];
+  relatedFiles: string[];
+  date: string;
+}
+
+/**
+ * Decide si una ruta corresponde a un archivo de decisiones o ADR por convenio de nombres.
+ * Coincide con rutas que son log de decisiones, o directorios adr/adrs/decisions.
+ */
+function isDecisionPath(relPath: string, decisionsFile: string): boolean {
+  // Ruta explícita configurada
+  if (relPath === decisionsFile) return true;
+  // Convención de directorios: docs/adr/*, docs/adrs/*, docs/decisions/*
+  if (/^(docs?|\.commandcode\/taste)\/(adrs?|decisions?)\//i.test(relPath)) return true;
+  // Convención de nombre: architecture-decisions.md, adr-log.md, etc.
+  if (/\/architecture-decisions\.md$/i.test(relPath)) return true;
+  if (/\/[^/]+-decisions?\.md$/i.test(relPath)) return true;
+  // Nombre de archivo individual tipo adr-001.md, adr_002.md, etc.
+  if (/^(.*[\\/])?(adr[-_]?\d+|ADR[-_]?\d+)\.md$/i.test(relPath)) return true;
+  return false;
+}
+
+/**
+ * Parsea un documento como decisiones individuales usando reglas estructurales.
+ * Intenta detectar ADRs en múltiples formatos:
+ * - Log continuo CommandCode: ### 2026-11-10 — tags
+ * - Secciones MADR/A4DR: ## [ADR-XXX] Título con subsecciones Contexto/Decisión
+ * - Formato simplificado: # ADR-XXX: Título + **Decisión**: ...
+ */
+function parseAsDecisions(
+  parsedFiles: Array<{ relPath: string; raw: string }>,
+  decisionsFile: string,
+): ParsedDecision[] {
+  const decisions: ParsedDecision[] = [];
+
+  for (const file of parsedFiles) {
+    if (!isDecisionPath(file.relPath, decisionsFile)) continue;
+
+    const adrs = extractADRsFromContent(file.raw, file.relPath);
+    for (const adr of adrs) {
+      const epochId = adr.date
+        ? `decision:${adr.date}:${adr.title.slice(0, 40).replace(/[^a-zA-Z0-9]/g, "-")}`
+        : `decision:adr-${file.relPath.split("/").pop() ?? "unknown"}:${adr.title.slice(0, 40).replace(/[^a-zA-Z0-9]/g, "-")}`;
+
+      decisions.push({
+        id: epochId,
+        episodeId: null,
+        path: file.relPath,
+        title: adr.title,
+        context: adr.context,
+        date: adr.date || new Date().toISOString().slice(0, 10),
+        tags: adr.tags,
+        relatedFiles: adr.relatedFiles,
+      });
+    }
+  }
+
+  return decisions;
+}
+
+/**
+ * Extrae decisiones individuales del contenido crudo de un fichero.
+ * Soporta tres formatos simultáneos.
+ */
+function extractADRsFromContent(raw: string, relPath: string): RawADR[] {
+  const results: RawADR[] = [];
+
+  // --- Formato 1: Log continuo CommandCode (### fecha — tags) ---
+  const ccBlocks = raw.split(/^### /m).slice(1);
+  const ccFormatDetected = ccBlocks.some((b) => /^\d{4}-\d{2}-\d{2}\s+—/.test(b.split("\n")[0]));
+
+  if (ccFormatDetected) {
+    for (const block of ccBlocks) {
+      const lines = block.split("\n");
+      const header = lines[0] ?? "";
+      const date = header.split("—")[0]?.trim() ?? "";
+      const tagPart = header.split("—")[1]?.trim() ?? "";
+
+      const contextMatch = /\*\*Contexto:\*\*\s*(.+)/.exec(block)?.[1]?.trim();
+      const titleMatch = /\*\*Decisi[oó]n:\*\*\s*(.+)/.exec(block)?.[1]?.trim();
+      const relatedMatch = /\*\*Archivos relacionados:\*\*\s*(.+)/.exec(block)?.[1];
+
+      if (!titleMatch && !contextMatch) continue;
+
+      results.push({
+        title: titleMatch || "Sin título",
+        context: contextMatch || "",
+        date: date.trim(),
+        tags: tagPart.split(",").map((t) => t.trim()).filter(Boolean),
+        relatedFiles: relatedMatch
+          ?.split(",")
+          .map((f) => f.trim())
+          .filter(Boolean) ?? [],
+      });
+    }
+  }
+
+  // --- Formato 2: ADR individual (por sección o por archivo) ---
+  // Busca secciones que empiecen con ## [ADR-XXX] o ## ADR XXX: Título
+  // Luego busca subsecciones Contexto/Decisión dentro de cada bloque.
+  const adrSectionRegex = /^## \[?[Aa][Dd][Rr][-_\s]?(\d+)\]?\s*-?\s*(.+)$/gm;
+  const sections: Array<{ header: string; body: string }> = [];
+  let match;
+
+  // Si detectamos formato CC, también buscar ADRs adicionales (pueden coexistir)
+  if (!ccFormatDetected) {
+    while ((match = adrSectionRegex.exec(raw)) !== null) {
+      const id = match[1];
+      const afterIdx = match.index + match[0].length;
+      // Buscar siguiente ## o fin del archivo
+      const nextHeader = raw.substring(afterIdx).match(/^## /m);
+      const endIdx = nextHeader ? afterIdx + (nextHeader.index ?? 0) : raw.length;
+      sections.push({ header: match[0], body: raw.substring(afterIdx, endIdx).trim() });
+    }
+  } else {
+    // En archivos con formato CC mezclado, extraer también bloques ADR
+    while ((match = adrSectionRegex.exec(raw)) !== null) {
+      const id = match[1];
+      const afterIdx = match.index + match[0].length;
+      const nextHeader = raw.substring(afterIdx).match(/^## /m);
+      const endIdx = nextHeader ? afterIdx + (nextHeader.index ?? 0) : raw.length;
+      sections.push({ header: match[0], body: raw.substring(afterIdx, endIdx).trim() });
+    }
+  }
+
+  // Procesar cada sección como un posible ADR
+  for (const sec of sections) {
+    const titleMatch = sec.header.match(/^\[?[Aa][Dd][Rr][-_\s]?\d+\]?\s*-?\s*(.+)$/);
+    const contextMatch = /##\s*[Cc]ontext[oó]|####\s*[Cc]ontext[oó]/i.test(sec.body);
+    const decisionMatch = /##\s*De[cç]isi[oó]n|####\s*De[cç]isi[oó]n/i.test(sec.body);
+    const consequencesMatch = /##\s*C onsecu[ée]nci[aá]s|####\s*C onsecu[ée]nci[aá]s/i.test(sec.body);
+
+    // Solo procesar si hay estructura ADR real (no encabezados vacíos)
+    if (!titleMatch) continue;
+
+    const contextRaw = /##\s*[Cc]ontext[oó]|####\s*[Cc]ontext[oó]/i.test(sec.body)
+      ? sec.body.split(/(?:^|\n)##\s*[Cc]ontext[oó]/i)[1]?.split(/(?:^|\n)(?:##|###)/)[0]?.trim() ?? ""
+      : "";
+
+    const decisionRaw = /##\s*De[cç]isi[oó]n|####\s*De[cç]isi[oó]n/i.test(sec.body)
+      ? sec.body.split(/(?:^|\n)##\s*De[cç]isi[oó]n/i)[1]?.split(/(?:^|\n)(?:##|###)/)[0]?.trim() ?? ""
+      : "";
+
+    const tags: string[] = [];
+    const sourceMatch = /Fuente[: ]+(.+)/i.exec(sec.body);
+    const consequenceBody = /##\s*C onsecu[ée]nci[aá]s/i.test(sec.body)
+      ? sec.body.split(/(?:^|\n)##\s*C onsecu[ée]nci[aá]s/i)[1]?.split(/(?:^|\n)(?:##|###)/)[0]?.trim() ?? ""
+      : "";
+
+    // Detectar archivos relacionados desde el cuerpo
+    const filesMatched = sec.body.match(/(?:src|lib|app|components)\/[\w./_-]+\.(ts|tsx|js|jsx)/gi);
+    const relatedFiles = filesMatched?.map((f) => f.replace(/^\.\//, "")) ?? [];
+
+    // Extract tags from metadata or common patterns
+    if (sourceMatch) tags.push(sourceMatch[1].trim());
+
+    results.push({
+      title: titleMatch[1].trim(),
+      context: contextRaw || decisionRaw || sec.body.slice(0, 200),
+      date: "",
+      tags,
+      relatedFiles: [...new Set(relatedFiles)],
+    });
+  }
+
+  // --- Formato 3: ADR individual por archivo (sin sección) ---
+  // Si el archivo entero es un único ADR sin división en secciones
+  if (sections.length <= 1) {
+    const singleAdr = tryParseSingleAdrFile(raw, relPath);
+    if (singleAdr) results.push(singleAdr);
+  }
+
+  return results;
+}
+
+/** Nombre de la última parte de una ruta. */
+function basename(path: string): string {
+  const parts = path.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+/**
+ * Intenta parsear un archivo completo como un único ADR (cuando no tiene
+ * divisiones claras en secciones).
+ */
+function tryParseSingleAdrFile(raw: string, relPath: string): RawADR | null {
+  // Verificar si parece un ADR individual
+  const hasAdTitle = /^#\s+[Aa][Dd][Rr][-_\s]?\d+/im.test(raw);
+  const hasContext = /##+.*[Cc]ontext(o|[ó])|[*]{2}[Cc]ontext[oó][*]{2}/i.test(raw);
+  const hasDecision = /##+.*[Dd]ecisi(o|[ó])n|[*]{2}[Dd]ecisi[oó]n[*]{2}/i.test(raw);
+
+  if (!hasAdTitle && !(hasContext && hasDecision)) return null;
+
+  // Extraer título
+  const titleMatch = /^#\s+[Aa][Dd][Rr][-_\s]?\d+\s*[-:]?\s*(.+)$/m.exec(raw);
+  const title = titleMatch?.[1]?.trim() ?? basename(relPath).replace(/\.(md)$/, "").replace(/[-_]?\d+$/, "");
+
+  // Extraer contexto y decisión usando extractSubsection helper
+  function extractSection(text: string, pattern: string): string | undefined {
+    const re = new RegExp(`(?:^|\\n)#{1,3}\\s*${pattern}(?:\\s*:)?`, "i");
+    const m = re.exec(text);
+    if (!m) return undefined;
+    const start = m.index + m[0].length;
+    const nextH = text.substring(start).match(/^#{1,3} /m);
+    const end = nextH ? start + (nextH.index ?? 0) : text.length;
+    return text.substring(start, end).trim();
+  }
+
+  const contextRaw = hasContext
+    ? extractSection(raw, "[Cc]ontext(o|[ó])") ?? raw.slice(0, 150)
+    : raw.slice(0, 150);
+
+  const decisionRaw = hasDecision
+    ? extractSection(raw, "[Dd]ecisi(o|[ó])n") ?? contextRaw.slice(0, 100)
+    : contextRaw.slice(0, 100);
+
+  // Detectar archivos relacionados
+  const filesMatched = raw.match(/(?:src|lib|app|components)\/[\w./_-]+\.(ts|tsx|js|jsx)/gi);
+  const relatedFiles = filesMatched?.map((f) => f.replace(/^\.\//, "")) ?? [];
+
+  return {
+    title,
+    context: contextRaw,
+    date: "",
+    tags: ["adr"],
+    relatedFiles: [...new Set(relatedFiles)],
+  };
 }

@@ -1,0 +1,1 @@
+- Discontinues publishing artifacts; prefers direct git commits and pushes. Confidence: 0.9
