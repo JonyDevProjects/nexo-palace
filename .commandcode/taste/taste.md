@@ -1,1 +1,2 @@
 - Discontinues publishing artifacts; prefers direct git commits and pushes. Confidence: 0.9
+- When smoke tests fail, updates/fixes the test suite rather than ignoring or skipping it. Confidence: 0.85

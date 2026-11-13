@@ -136,7 +136,8 @@ async function main(): Promise<number> {
     case "index": {
       // Si el índice ya tiene una capa vectorial, se reutiliza su proveedor:
       // cambiar de proveedor en silencio descartaría los embeddings actuales.
-      const explicit = typeof flags.provider === "string" ? flags.provider : undefined;
+      const envProvider = process.env.PALACE_EMBED_PROVIDER;
+      const explicit = typeof flags.provider === "string" ? flags.provider : (envProvider || undefined);
       const index = indexProvider(db);
       const provider = explicit
         ? await createEmbeddingProvider({

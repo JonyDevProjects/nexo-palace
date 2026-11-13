@@ -16,6 +16,7 @@
     "tests/unit/util.test.ts",
     "README.md"
   ],
+  "type": "module",
   "keywords": [
     "mcp",
     "memory",
@@ -30,7 +31,9 @@
     "test": "node --experimental-strip-types src/test-mcp.ts",
     "test:unit": "vitest run",
     "bench": "node --experimental-strip-types src/bench.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "node --experimental-strip-types src/setup.ts || true",
+    "postinstall": "node --experimental-strip-types src/setup.ts || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

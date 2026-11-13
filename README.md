@@ -29,7 +29,48 @@ O como dependencia local del proyecto:
 npm install --save-dev nexo-palace
 ```
 
-Requiere Node 22.6 o superior.
+Requiere Node 22.6 o superior. Después de instalar, se ejecuta automáticamente `npm run setup` que detecta proveedores locales de embeddings disponibles.
+
+## Proveedores de embeddings
+
+La búsqueda semántica requiere un proveedor de embeddings. La prioridad de detección automática es **litert → ollama → offline**.
+
+### LiteRT (recomendado)
+
+Servicio standalone que expone la API OpenAI-compatible `/v1/embeddings`:
+
+```bash
+# Instalar
+pip install mlc-ai-litert
+
+# Arrancar servicio en puerto 11435
+python -m litert.serve --port 11435
+
+# Usa el modelo nomic-embed-text (descargado automáticamente)
+PALACE_EMBED_PROVIDER=litert node_modules/.bin/nexo-palace index
+```
+
+### Ollama (alternativa sencilla)
+
+```bash
+# macOS
+brew install ollama && ollama pull nomic-embed-text && ollama serve &
+
+# Linux/Docker
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull nomic-embed-text
+
+# Indexa con ollama directamente
+PALACE_EMBED_PROVIDER=ollama node_modules/.bin/nexo-palace index
+```
+
+### Offline (sin red)
+
+Si no hay litert ni ollama corriendo, se usa hash-TF-IDF determinista sin conexión a internet. Solo BM25 léxico, sin comprensión semántica real:
+
+```bash
+PALACE_EMBED_PROVIDER=offline node_modules/.bin/nexo-palace index
+```
 
 ## Configuración del proyecto
 
