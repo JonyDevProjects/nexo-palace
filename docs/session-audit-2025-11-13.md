@@ -131,4 +131,92 @@ Dado que `palace/nexo-memory.sqlite3` está en `.gitignore`, añadir un subcoman
 
 ---
 
-**Decision pendiente:** ¿Implementar estas tres mejoras en el código, o preparar primero un benchmark directo ejecutando consultas equivalentes entre los tres sistemas?
+## Decision pendiente: Tres mejoras de trazabilidad (Graphify/Engram inspiradas)
+
+¿Implementar estas tres mejoras en el código, o preparar primero un benchmark directo ejecutando consultas equivalentes entre los tres sistemas?
+
+### Aristas con Confianza
+Añadir columna `confidence` (`EXTRACTED` vs `INFERRED`) en edges para distinguir vínculo explícito (`// @implements EPC-01`) de relación deducida heurísticamente. Impacto: transparencia en resultados de `memory_trace`.
+
+### Camino más corto entre Entidades
+Añadir en `src/trace.ts` consulta recursiva (`WITH RECURSIVE`) para que el agente pregunte "¿Cómo llega X a Y?" con ruta paso a paso. Impacto: onboarding y debugging de impacto.
+
+### Exportación / Sincronización Git-Friendly
+Subcomando `nexo-palace export/import` para versionar la memoria episódica en JSONL comprimido. Impacto: portabilidad entre equipos/repos.
+
+---
+
+## Problema inmediato: Desacoplamiento de decisiones respecto a CommandCode
+
+**Fecha:** 2025-11-13 · **Prioridad:** alta — impide uso fuera del ecosistema CommandCode.
+
+### Descripción del problema actual
+
+La gestión de decisiones está acoplada a la estructura de `.commandcode/taste` de CommandCode:
+
+| Componente | Valor por defecto | Problema |
+|---|---|---|
+| `decisionsFile` | `.nexo-palace/decisions.md` | Dentro de un directorio marcado como `ignoreDirs` |
+| `tasteDirs` | `[]` | Si no se declara `.commandcode/taste`, las convenciones no se indexan |
+| Parser decisiones | Espera formato ADR `### fecha — etiquetas` | Solo compatible con decisiones registradas por CommandCode |
+| Indexación decisional | Busca coincidencia exacta `file.relPath === decisionsPath` | Si la ruta no coincide, el fichero se ignora |
+
+**Resultado concreto:** un repositorio sin `.commandcode/taste/decisions.md` en su configuración pierde por completo la capa de decisiones durante la indexación. No hay mecanismo de detección automática ni fallback.
+
+### Ejemplo de fallo
+
+```bash
+# Repo de un equipo que usa docs/adrs/ pero no tiene .commandcode
+cd /proyecto-de-un-equipo
+
+# Configura nexo-palace.config.json
+echo '{"projectName":"mi-repo"}' > nexo-palace.config.json
+# ↓ No menciona tasteDirs ni decisionsFile
+
+nexo-palace index
+# → 0 decisions indexadas porque:
+#   1. defaults.decisionsFile = ".nexo-palace/decisions.md" (no existe)
+#   2. parseDecisionFile() busca solo ese path exacto entre parsedFiles
+#   3. Los archivos en docs/architecture-decisions.md quedan invisible
+```
+
+### Soluciones propuestas
+
+#### Opción A — Ruta relativa al proyecto en `docs/`
+Poner el fichero de decisiones dentro de un dir ya indexable:
+```json
+{
+  "decisionsFile": "docs/architecture-decisions.md",
+  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build"]
+}
+```
+La decisión se lee como documento normal (sin formato ADR estricto), se indexa junto con `docs/`, y cualquier equipo puede escribirlo donde sea. El parser deja de exigir `### fecha — tags` y usa el markdown general.
+
+**Ventajas:** Simple, flexible, funciona sin `.commandcode/taste`, mantiene compatibilidad con la API de MCP existente.
+**Desventajas:** Pierde la cabecera estandarizada de ADRs.
+
+#### Opción B — Detección automática + fallback
+El motor escanea automáticamente los documentos indexados y detecta archivos que contienen patrones de decisión (ej: palabras clave como "decisión", "contexto", "ADR", "se resolvió") sin necesidad de configuración explícita. Las decisiones se marcan como tipo `decision` en el grafo.
+
+**Ventajas:** Cero configuración inicial, captura decisiones existentes automáticamente.
+**Desventajas:** Falsa positiva si algún doc contiene esas palabras sin ser una decisión; requiere ajuste de umbral.
+
+#### Opción C — Ambas combinadas
+Mantener `decisionsFile` configurable (Opción A) y además ejecutar detección automática al final de cada indexación (Opción B). Si el usuario no configula nada, el motor intenta detectar; si configura un path específico, sobreescribe la detección.
+
+**Ventajas:** Cobertura total — tanto para nuevos proyectos como para migración gradual.
+**Desventajas:** Complejidad añadida en ingest-docs.ts; necesita tests de precisión/false positive.
+
+### Propuesta de priorización inmediata
+
+Realizar un **benchmark comparativo** ejecutando las tres opciones contra un corpus de prueba (un proyecto real con ~50 ADRs distribuidos de forma heterogénea) y medir:
+
+1. **Recall**: cuántas decisiones reales se indexan correctamente
+2. **Precision**: cuántos falsos positivos genera
+3. **Coste de implementación**: líneas de código nuevas, tiempo estimado
+4. **Compatibilidad**: impacto en la API MCP existente (`memory_record_decision`)
+
+### Resultado esperado
+
+Decidir cuál es la mejor estrategia para descentralizar el registro de decisiones y permitir que cualquier equipo use Nexo-Palace sin necesidad de adherirse a la estructura de CommandCode.
+

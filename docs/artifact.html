@@ -160,6 +160,50 @@
 <strong>Decision pendiente:</strong> ¿Implementar estas tres mejoras en el código de nexo-palace, o preparar primero un benchmark directo ejecutando consultas equivalentes entre los tres sistemas?
 </div>
 
+<hr style="margin: 2rem 0; border: none; border-top: 2px solid #d0d7de;">
+
+<h2>Inmediato: Desacoplamiento de decisiones respecto a CommandCode</h2>
+<p><strong>Prioridad:</strong> Alta — impide uso fuera del ecosistema CommandCode.</p>
+
+<h3>Problema actual</h3>
+<p>La gestión de decisiones está acoplada a <code>.commandcode/taste</code>:</p>
+<table>
+<thead>
+<tr><th>Componente</th><th>Valor por defecto</th><th>Problema</th></tr>
+</thead>
+<tbody>
+<tr><td><code>decisionsFile</code></td><td><code>.nexo-palace/decisions.md</code></td><td>Dentro de <code>ignoreDirs</code></td></tr>
+<tr><td><code>tasteDirs</code></td><td><code>[]</code></td><td>Sin .commandcode/taste → 0 convenciones indexadas</td></tr>
+<tr><td>Parser decisiones</td><td>Formato ADR <code>### fecha — etiquetas</code></td><td>Solo compatible con CommandCode</td></tr>
+<tr><td>Indexación decisional</td><td>Coincidencia exacta path</td><td>Ruta diferente → fichero ignorado</td></tr>
+</tbody>
+</table>
+
+<p>Un repositorio sin <code>.commandcode/taste/decisions.md</code> pierde la capa de decisiones durante la indexación. No hay detección automática ni fallback.</p>
+
+<h3>Soluciones propuestas</h3>
+
+<h4>Opción A — Ruta relativa al proyecto en docs/</h4>
+<p>Mover el fichero a <code>docs/architecture-decisions.md</code> (dir ya indexable). Parser flexible, sin formato ADR estricto. Funciona sin <code>.commandcode/taste</code>.</p>
+<p><strong>Ventajas:</strong> Simple, flexible, mínima complejidad.<br><strong>Desventajas:</strong> Pierde cabecera estandarizada ADR.</p>
+
+<h4>Opción B — Detección automática + fallback</h4>
+<p>El motor escanea documentos y detecta archivos con patrones de decisión (palabras clave: "decisión", "contexto", "ADR") sin configuración explícita. Se marcan como tipo <code>decision</code> en el grafo.</p>
+<p><strong>Ventajas:</strong> Cero configuración inicial.<br><strong>Desventajas:</strong> Posibles falsos positivos.</p>
+
+<h4>Opción C — Ambas combinadas</h4>
+<p><code>decisionsFile</code> configurable (A) + detección automática al final de cada indexación (B). Si no configura nada, intenta detectar; si configura ruta, sobreescribe la detección.</p>
+<p><strong>Ventajas:</strong> Cobertura total para nuevos proyectos y migración gradual.<br><strong>Desventajas:</strong> Complejidad añadida en ingest-docs.ts.</p>
+
+<h3>Propuesta inmediata: Benchmark comparativo</h3>
+<p>Ejecutar las tres opciones contra un corpus real (~50 ADRs distribuidos heterogéneamente) y medir:</p>
+<ul>
+<li><strong>Recall:</strong> cuántas decisiones reales se indexan correctamente</li>
+<li><strong>Precision:</strong> falsos positivos</li>
+<li><strong>Coste implementación:</strong> líneas nuevas, tiempo estimado</li>
+<li><strong>Compatibilidad API MCP:</strong> impacto en <code>memory_record_decision</code></li>
+</ul>
+
 </main>
 
 <footer>Generado automáticamente desde Command Code · nexo-palace · MIT License</footer>
