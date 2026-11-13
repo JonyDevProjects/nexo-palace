@@ -24,9 +24,14 @@
   blockquote { border-left: 3px solid #0969da; padding: 0.5rem 1rem; margin: 1rem 0; background: #f0f7ff; border-radius: 0 4px 4px 0; font-size: 0.95rem; }
   .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
   .alpha { background: #fff3bf; color: #786000; }
+  .done { background: #dafbe1; color: #1a7f37; }
+  .pending { background: #fff3bf; color: #786000; }
   .gain-engram { background: #dafbe1; color: #1a7f37; padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.85em; }
   .gain-nexo { background: #ddf4ff; color: #0550ae; padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.85em; }
   .decision { background: #fff3bf; border: 1px solid #d4a72c; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; font-size: 0.9rem; }
+  .progress { display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0 1rem 0; }
+  .bar { flex: 1; height: 8px; background: #e8ecf0; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #3fb950; border-radius: 4px; }
   footer { padding: 1.5rem 2.5rem; background: #f6f8fa; border-top: 1px solid #d0d7de; font-size: 0.8rem; color: #6e7781; }
 </style>
 </head>
@@ -34,7 +39,7 @@
 <div class="container">
 <header>
 <h1>Nexo-Palace — Session Audit</h1>
-<p>Fecha de la sesión: 2025-11-13 · Actualizado con posicionamiento competitivo</p>
+<p>Fecha de la sesión: 2025-11-13 · Actualizado con CI/CD, tests unitarios y posicionamiento competitivo</p>
 </header>
 
 <main>
@@ -52,9 +57,10 @@
 <blockquote>Todo local: SQLite + embeddings locales o Gemini/Ollama, sin servicios en la nube obligatorios.</blockquote>
 
 <h2>Estado actual</h2>
-<p><span class="status-badge alpha">Early alpha (v0.1.0)</span> — recién extraído como paquete independiente, 2 commits en git.</p>
+<p><span class="status-badge alpha">Early alpha (v0.1.0)</span> — 5 commits, CI configurado, tests unitarios.</p>
+<div class="progress"><div class="bar"><div class="bar-fill" style="width:33%"></div></div><span style="font-size:0.8rem;color:#6e7781;">3/8 tareas priorizadas hechas</span></div>
 
-<h3>Qué funciona (tests pasan, typecheck limpio)</h3>
+<h3>Módulos core (funcionales)</h3>
 <table>
 <thead>
 <tr><th>Módulo</th><th>Funcionalidad</th></tr>
@@ -72,14 +78,25 @@
 </tbody>
 </table>
 
+<h3>Infraestructura nueva</h3>
+<table>
+<thead>
+<tr><th>Componente</th><th>Estado</th></tr>
+</thead>
+<tbody>
+<tr><td>GitHub Actions CI (<code>.github/workflows/ci.yml</code>)</td><td><span class="status-badge done">Hecho</span></td></tr>
+<tr><td>Vitest + test unitarios (<code>tests/unit/util.test.ts</code>)</td><td><span class="status-badge done">Hecho</span> (13 tests)</td></tr>
+<tr><td>Smoke test MCP (original, no modificado)</td><td><span class="status-badge done">Pasando</span> (15 assertions)</td></tr>
+<tr><td>TypeScript typecheck (<code>tsc --noEmit</code>)</td><td><span class="status-badge done">Limpio</span></td></tr>
+</tbody>
+</table>
+
 <h3>Qué falta</h3>
 <table>
 <thead>
 <tr><th>Brecha</th><th>Implicación</th></tr>
 </thead>
 <tbody>
-<tr><td>Solo smoke test manual (15 assertions)</td><td>Sin framework ni regresión sistemática</td></tr>
-<tr><td>Sin CI/CD</td><td>No hay automatización de calidad</td></tr>
 <tr><td>Paquete no publicado en npm</td><td>Nadie puede instalarlo remotamente</td></tr>
 <tr><td>Documentación solo en español</td><td>Barrera para adopción internacional</td></tr>
 <tr><td><code>derived_from</code> y <code>deprecated_by</code> definidas pero muertas</td><td>Esquema desactualizado</td></tr>
@@ -95,33 +112,6 @@
 <li>Fragmentos &lt; 160 caracteres no se embeben.</li>
 <li>Modelo local <code>nomic-embed-text</code> rinde bajo en corpus español.</li>
 </ul>
-
-<h2>Próximos pasos</h2>
-
-<h3>P1 — Publicar el paquete en npm</h3>
-<p>Sin publicar, el proyecto no tiene ciclo de vida real. Verificar scripts de entrada antes de publicar.</p>
-
-<h3>P2 — CI/CD mínimo (GitHub Actions)</h3>
-<p>Workflow que ejecute <code>npm run typecheck</code> + <code>npm test</code> por push/PR. Bajo coste, alto impacto.</p>
-
-<h3>P3 — Expandir suite de pruebas</h3>
-<p>Migrar a framework con unit tests para <code>query.ts</code>, <code>ingest-docs.ts</code>, <code>extract-code.ts</code>.</p>
-
-<h3>P4 — Traducir README a inglés</h3>
-<p>Cambio mayor para adopción externa. Aportaría contributor guide y docs bilingües.</p>
-
-<h3>P5 — Limpiar esquema</h3>
-<p>Implementar o eliminar <code>derived_from</code> / <code>deprecated_by</code>. Cosmético pero elimina confusiones.</p>
-
-<h3>Futuro (fuera de prioridad inmediata)</h3>
-<ul>
-<li>Visualizador web del grafo de trazabilidad (TypeScript/cytoscape/D3)</li>
-<li>Más proveedores de embeddings (OpenAI, Anthropic)</li>
-<li>Ingesta incremental en watch mode</li>
-<li>Plugin system para formatos no-Markdown</li>
-</ul>
-
-<hr style="margin: 2rem 0; border: none; border-top: 2px solid #d0d7de;">
 
 <h2>Roadmap: Posicionamiento frente a Engram y Graphify</h2>
 <p><strong>Nexo-Palace</strong> combina en un único motor lo que <strong>Engram</strong> y <strong>Graphify</strong> resuelven por separado: une la memoria episódica y de decisiones con un grafo de trazabilidad de código y búsqueda semántica vectorial híbrida, añadiendo una capa exclusiva de <strong>gobernanza de producto</strong> (**Requisitos $\leftrightarrow$ Código $\leftrightarrow$ Tests + Drift Detection**) que ninguna de las dos herramientas de mercado posee.</p>
