@@ -32,8 +32,8 @@
     "test:unit": "vitest run",
     "bench": "node --experimental-strip-types src/bench.ts",
     "typecheck": "tsc --noEmit",
-    "setup": "node --experimental-strip-types src/setup.ts || true",
-    "postinstall": "node --experimental-strip-types src/setup.ts || true"
+    "setup": "node --experimental-strip-types src/installer.ts || true",
+    "postinstall": "node --experimental-strip-types src/installer.ts || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
