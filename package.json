@@ -13,15 +13,9 @@
   "files": [
     "bin",
     "src",
+    "tests/unit/util.test.ts",
     "README.md"
   ],
-  "scripts": {
-    "start": "node --experimental-strip-types src/cli.ts",
-    "mcp": "node --experimental-strip-types src/server.ts",
-    "test": "node --experimental-strip-types src/test-mcp.ts",
-    "bench": "node --experimental-strip-types src/bench.ts",
-    "typecheck": "tsc --noEmit"
-  },
   "keywords": [
     "mcp",
     "memory",
@@ -30,6 +24,14 @@
     "agents",
     "knowledge-graph"
   ],
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli.ts",
+    "mcp": "node --experimental-strip-types src/server.ts",
+    "test": "node --experimental-strip-types src/test-mcp.ts",
+    "test:unit": "vitest run",
+    "bench": "node --experimental-strip-types src/bench.ts",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "better-sqlite3": "^13.1.1",
@@ -39,7 +41,9 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^22.10.2",
-    "typescript": "^5.7.2"
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.6",
+    "vitest": "^5.1.0"
   }
 }
