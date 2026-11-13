@@ -74,3 +74,61 @@ Cosmético pero elimina confusiones futuras en mantenimiento.
 - Más proveedores de embeddings (OpenAI, Anthropic)
 - Ingesta incremental en watch mode
 - Plugin system para procesadores de formatos no-Markdown
+
+---
+
+## Roadmap: Posicionamiento frente a Engram y Graphify
+
+**Nexo-Palace** combina en un único motor lo que **Engram** y **Graphify** resuelven por separado: une la memoria episódica y de decisiones con un grafo de trazabilidad de código y búsqueda semántica vectorial híbrida, añadiendo una capa exclusiva de **gobernanza de producto** (**Requisitos $\leftrightarrow$ Código $\leftrightarrow$ Tests + Drift Detection**) que ninguna de las dos herramientas de mercado posee.
+
+### Comparativa Técnica y Arquitectónica
+
+| Dimensión | Nexo-Palace (Estado Actual) | Engram (Gentleman-Programming) | Graphify (Graphify-Labs) |
+| --- | --- | --- | --- |
+| **Enfoque Principal** | Trazabilidad Spec $\leftrightarrow$ Código + RAG Híbrido + Drift | Memoria persistente de sesiones y decisiones para agentes | Grafo de conocimiento estructural y multimodal del repo |
+| **Stack / Runtime** | Node.js / TypeScript (`ts-morph`, `better-sqlite3`) | Binario nativo en Go (cero dependencias) | Python 3.10+ (`tree-sitter`, `networkx`) |
+| **Almacenamiento** | SQLite unificado (`FTS5` + `sqlite-vec` + Grafo SQL) | SQLite + `FTS5` + chunks `.jsonl.gz` (Git-friendly) | Archivos locales (`graph.json`, `graph.html`, `GRAPH_REPORT.md`) |
+| **Motor de Búsqueda** | Híbrido: BM25 + Literal + Vectorial (768d) con RRF | Léxico puro (BM25 / FTS5) y filtrado contextual | Traversal de grafo por comunidades y caminos (`path A B`) |
+| **Análisis de Código** | AST TypeScript/JS (`ts-morph`) + etiquetas `@implements` | No analiza el AST del código fuente | AST políglota vía `tree-sitter` + schemas SQL + PDFs/Media |
+| **Detección de Deriva** | Nativa (`drift.ts`): cruza `git diff` contra requisitos | No tiene (centrado en recordar contexto de sesión) | No audita el estado operativo de requisitos de negocio |
+| **Interfaz Agente** | MCP Server (`stdio`) + CLI + Skills EGM | MCP Server (`stdio`/HTTP) + CLI + API HTTP + TUI | Skills nativas (`/graphify`) + CLI + Cloud MCP |
+
+### Análisis Detallado: Dónde gana cada solución
+
+#### 1. Nexo-Palace frente a Engram (`Gentleman-Programming/engram`)
+
+- **Dónde gana Engram:** Al estar compilado en Go, es un binario único ultrarrápido y portable que incluye interfaz de terminal interactiva (TUI) y sincronización nativa de memorias en Git mediante fragmentos comprimidos (`.engram/chunks/*.jsonl.gz`). Es imbatible como "bloc de notas persistente" entre sesiones para cualquier agente.
+
+- **Dónde gana Nexo-Palace:** Engram carece de búsqueda vectorial semántica (se limita a FTS5 léxico) y es ciego a la estructura del código fuente. **Nexo-Palace** sí entiende paráfrasis complejas gracias a sus embeddings de 768 dimensiones (vía LiteRT/Ollama o Gemini) y, sobre todo, construye un grafo que sabe exactamente qué archivos implementan cada historia de usuario (`EPC-01`, `US-102`) y qué tests los cubren. Además, Nexo-Palace vuelca las decisiones en `.commandcode/taste/decisions.md` en Markdown legible en Git sin renunciar a indexarlas vectorialmente.
+
+#### 2. Nexo-Palace frente a Graphify (`Graphify-Labs/graphify`)
+
+- **Dónde gana Graphify:** Su parser basado en `tree-sitter` es políglota y multimodal (mapea código en múltiples lenguajes, esquemas SQL, PDFs e imágenes), detecta comunidades conceptuales, genera visualizaciones interactivas (`graph.html`) y explica cada arista diferenciando entre relaciones explícitas (`EXTRACTED`) e inferidas (`INFERRED`) con pesos de confianza.
+
+- **Dónde gana Nexo-Palace:** Graphify rechaza por diseño el uso de vectores ("*No embeddings, no vector store*") y requiere un pase semántico con LLM para documentos que no son código. **Nexo-Palace** combina lo mejor de ambos mundos: utiliza fusión RRF (*Reciprocal Rank Fusion*) sumando vectores locales en 24 ms + BM25 + coincidencias literales. Además, mientras Graphify mapea qué existe en el repositorio, **Nexo-Palace audita la evolución del producto**: extrae el estado operativo real de las tablas de tus specs (`done`, `on_hold`, `NEEDS_REVIEW`) y alerta automáticamente mediante `drift.ts` cuando un cambio en el código deja desfasada la documentación.
+
+### Funcionalidades absorber de Engram y Graphify
+
+Para que `nexo-palace` supere por completo a ambas herramientas como producto empaquetable, hay tres características concretas de sus repositorios que encajan directamente en tu arquitectura actual (`src/`):
+
+#### 1. Aristas Tipadas por Confianza (Inspirado en Graphify)
+
+Añadir una columna `confidence` (`EXTRACTED` vs `INFERRED`) en la tabla `edges` de `src/schema.sql`. Así, `memory_trace` podrá distinguir entre un vínculo explícito escrito por el desarrollador (`// @implements EPC-01`) y una relación deducida heurísticamente por mención en texto.
+
+**Impacto:** Mayor transparencia en los resultados de `memory_trace` — el agente sabe cuándo un enlace es directo y cuándo es inferred.
+
+#### 2. Camino más corto entre Entidades (`memory_path A B` de Graphify)
+
+Añadir en `src/trace.ts` una consulta recursiva (`WITH RECURSIVE` en SQLite) que permita al agente preguntar cómo se conectan dos puntos distantes del proyecto (por ejemplo, desde un componente UI hasta una tabla de Supabase pasando por su requisito de seguridad).
+
+**Impacto:** Respuestas explicativas tipo "¿Cómo llega X a Y?" con ruta completa paso a paso, muy útil para onboarding y debugging de impacto.
+
+#### 3. Exportación / Sincronización Git-Friendly (Inspirado en Engram)
+
+Dado que `palace/nexo-memory.sqlite3` está en `.gitignore`, añadir un subcomando en `src/cli.ts` (`nexo-palace export/import`) que vuelque la tabla `episodes` y los metadatos del grafo a un archivo JSONL comprimido o Markdown estructurado versionable en Git, permitiendo que otro desarrollador clone el repo y restaure la memoria episódica en 1 segundo sin re-indexar desde cero.
+
+**Impacto:** Portabilidad total de la memoria episódica entre equipos/repos. Clonar + `import` = contexto disponible inmediatamente.
+
+---
+
+**Decision pendiente:** ¿Implementar estas tres mejoras en el código, o preparar primero un benchmark directo ejecutando consultas equivalentes entre los tres sistemas?
