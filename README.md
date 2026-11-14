@@ -110,44 +110,48 @@ Si estás usando Claude Code, Cursor, Windsurf, Antigravity o CommandCode, puede
 
 ## Configuración del proyecto
 
-Cada proyecto declara qué se indexa en un `nexo-palace.config.json` en su raíz:
+Nexo-Palace está diseñado con **cero configuración obligatoria**: al ejecutar `npx nxpl map`, **El Arquitecto** autodescubre la estructura del repositorio:
+- **Documentación:** Escanea automáticamente cualquier archivo `.md` del proyecto desde la raíz (`["."]`) respetando las carpetas ignoradas (`ignoreDirs`).
+- **Código:** Detecta carpetas estándar (`src`, `lib`, `app`, `components`, `tests`, etc.) tanto en la raíz como en **subproyectos de primer nivel** (p. ej. `viz-app/src`, `packages/core/src`), con fallback a `["."]`.
+- **Convenciones y Gustos (`taste`):** Detecta automáticamente directorios de convenciones y decisiones existentes, como `.commandcode/taste`, `docs/adr`, `docs/adrs` o `docs/decisions`.
+- **Requisitos multilingües:** Reconoce de serie prefijos en español e inglés (`RF`, `RNF`, `FR`, `NFR`, `HU`, `US`, `CU`, `UC`, `EPC`, `EPIC`, `REQ`, `TASK`, `TSK`, `ADR`, `RFC`, `SPEC`, `TC`, `CP`, `AC`, `CA`, `BUG`, `FIX`, `WP`) y aplica **normalización cruzada** automática (p. ej. `FR-001` → `RF-001`, `HU-101` → `US-101`, `UC-10` → `CU-10`).
+
+Si tu proyecto necesita personalizar rutas, exclusiones o prefijos específicos, crea un `nexo-palace.config.json` en su raíz:
 
 ```json
 {
   "projectName": "mi-proyecto",
 
-  "docs": ["docs"],
-  "tasteDirs": [".commandcode/taste"],
+  "docs": ["."],
+  "tasteDirs": [".commandcode/taste", "docs/adr"],
 
-  "codeDirs": ["app", "components", "lib", "tests", "e2e"],
+  "codeDirs": ["src", "viz-app/src"],
   "codeExtensions": [".ts", ".tsx", ".js", ".jsx"],
 
-  "requirementPrefixes": ["EPC", "US", "ADR"],
+  "requirementPrefixes": ["RF", "RNF", "HU", "CU", "EPC", "US", "ADR", "REQ", "TASK"],
 
-  "decisionsFile": ".commandcode/taste/decisions.md",
+  "decisionsFile": ".nexo-palace/decisions.md",
   "dbPath": ".nexo-palace/memory.sqlite3",
 
-  "ignoreDirs": ["node_modules", ".git", ".next", "dist"]
+  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage"]
 }
 ```
 
-| Clave | Para qué sirve | Por defecto |
+| Clave | Para qué sirve | Por defecto (Autodescubierto) |
 | :--- | :--- | :--- |
-| `projectName` | Nombre del proyecto en las descripciones del servidor MCP. | El nombre de la carpeta. |
-| `docs` | Directorios cuyo Markdown se indexa como documentación. | `["docs"]` |
-| `tasteDirs` | Directorios documentales marcados como `taste` (convenciones). | `[]` |
-| `codeDirs` | Directorios escaneados por el extractor AST. | `["src", "lib", "app", "components", "tests", "test", "e2e"]` |
-| `codeExtensions` | Extensiones de código indexables. | `[".ts", ".tsx", ".js", ".jsx"]` |
-| `requirementPrefixes` | Prefijos de los IDs de trazabilidad (`EPC-01`, `US-101`…). | `["EPC", "US", "ADR", "REQ", "TASK", "WP"]` |
-| `decisionsFile` | Dónde se acumulan las decisiones registradas. | `.nexo-palace/decisions.md` |
-| `dbPath` | Ruta de la base SQLite. | `.nexo-palace/memory.sqlite3` |
-| `ignoreDirs` | Directorios que nunca se recorren. | Una lista estándar de build. |
+| `projectName` | Nombre del proyecto en las descripciones del servidor MCP. | El nombre de la carpeta raíz. |
+| `docs` | Directorios o archivos individuales Markdown a cartografiar. | `["."]` (toda la doc del repo). |
+| `tasteDirs` | Directorios de convenciones y decisiones de equipo (`taste`). | Autodetecta `.commandcode/taste`, `docs/adr*`, `docs/decisions`. |
+| `codeDirs` | Directorios analizados por el extractor AST (`ts-morph`). | Autodetecta `src/`, `lib/`, etc. en raíz y subcarpetas. |
+| `codeExtensions` | Extensiones de código indexables en el grafo. | `[".ts", ".tsx", ".js", ".jsx"]` |
+| `requirementPrefixes` | Prefijos de trazabilidad reconocidos (`RF-01`, `US-101`…). | 24 prefijos estándar ES/EN con normalización cruzada. |
+| `decisionsFile` | Archivo Markdown donde se acumulan las decisiones registradas. | `docs/decisions.md` (o `.nexo-palace/decisions.md`). |
+| `dbPath` | Ruta de la base de datos SQLite y vectores. | `.nexo-palace/memory.sqlite3` |
+| `ignoreDirs` | Directorios excluidos del escaneo documental y de código. | Lista estándar (`node_modules`, `.git`, `dist`, etc.). |
 
-El fichero se busca **hacia arriba** desde el directorio actual, de modo que
-funciona desde cualquier subcarpeta del proyecto.
+El fichero se busca **hacia arriba** desde el directorio actual, de modo que funciona desde cualquier subcarpeta del proyecto.
 
-> Todos los campos son opcionales: sin fichero de configuración, el motor usa
-> los valores por defecto y funciona en el directorio actual.
+> **Nota:** Todos los campos son opcionales. En la gran mayoría de proyectos (incluyendo proyectos organizados con CommandCode o monorrepositorios), Nexo-Palace funciona de forma óptima sin necesidad de crear este fichero.
 
 ## Uso
 
