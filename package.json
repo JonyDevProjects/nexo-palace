@@ -1,6 +1,6 @@
 {
   "name": "@ijonydev/nexo-palace",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Memoria de proyecto para agentes: índice híbrido (semántico + léxico) y grafo de trazabilidad, expuestos como CLI y servidor MCP.",
   "license": "MIT",
   "type": "module",
