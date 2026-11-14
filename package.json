@@ -1,5 +1,5 @@
 {
-  "name": "nexo-palace",
+  "name": "@ijonydev/nexo-palace",
   "version": "0.1.0",
   "description": "Memoria de proyecto para agentes: índice híbrido (semántico + léxico) y grafo de trazabilidad, expuestos como CLI y servidor MCP.",
   "license": "MIT",
@@ -8,15 +8,16 @@
     "node": ">=22.6.0"
   },
   "bin": {
-    "nexo-palace": "./bin/nexo-palace.js"
+    "nexo-palace": "bin/nexo-palace.js",
+    "nxpl": "bin/nexo-palace.js"
   },
   "files": [
-    "bin",
-    "src",
-    "tests/unit/util.test.ts",
-    "README.md"
+    "bin/",
+    "src/",
+    "nexo-palace.config.example.json",
+    "README.md",
+    "LICENSE"
   ],
-  "type": "module",
   "keywords": [
     "mcp",
     "memory",

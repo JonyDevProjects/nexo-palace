@@ -33,6 +33,7 @@ import { ingestDocuments } from "./ingest-docs.ts";
 import { search } from "./query.ts";
 import { traceEntity } from "./trace.ts";
 import { startServer } from "./server.ts";
+import { ProgressBar } from "./tui.ts";
 
 /** Opciones analizadas de la línea de comandos. */
 interface CliOptions {
@@ -86,10 +87,11 @@ function queryProvider(db: ReturnType<typeof openDb>): EmbeddingProvider {
 function usage(): void {
   process.stdout.write(
     [
-      "Nexo-Palace — memoria de proyecto para agentes",
+      "Nexo-Palace — El Arquitecto del Sueño: memoria de proyecto para agentes",
       "",
       "Comandos:",
-      "  index [--provider <litert|gemini|ollama|offline>] [--model <modelo>]  Indexa documentación y código",
+      "  map | index [--provider <litert|gemini|ollama|offline>] [--model <modelo>]",
+      "                                                                       El Arquitecto cartografía el repositorio y teje el grafo",
       "  query <texto> [--scope <scope>] [--limit <n>] [--path <prefijo>]    Consulta híbrida",
       "  trace <entidad> [--depth <n>]                                      Traza el grafo de un archivo o símbolo",
       "  drift [--base <ref>] [--dry-run]                                    Detecta deriva entre código y requisitos",
@@ -97,6 +99,7 @@ function usage(): void {
       "                                                                       Registra una decisión en la memoria",
       "  stats                                                               Estado del índice",
       "  serve                                                               Servidor MCP por stdio",
+      "  setup                                                               Asistente de instalación y configuración",
       "",
       "Opciones globales:",
       "  --root <dir>      Raíz del proyecto a indexar",
@@ -124,6 +127,12 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  if (command === "setup") {
+    const { main: runSetup } = await import("./installer.ts");
+    await runSetup();
+    return 0;
+  }
+
   if (command === "serve") {
     await startServer();
     // El servidor MCP vive hasta que el cliente lo cierre.
@@ -133,6 +142,7 @@ async function main(): Promise<number> {
   const db = openDb();
 
   switch (command) {
+    case "map":
     case "index": {
       // Si el índice ya tiene una capa vectorial, se reutiliza su proveedor:
       // cambiar de proveedor en silencio descartaría los embeddings actuales.
@@ -149,31 +159,47 @@ async function main(): Promise<number> {
             model: typeof flags.model === "string" ? flags.model : undefined,
           })));
 
-      process.stderr.write(`[nexo-palace] indexando documentos con ${describeProvider(provider)}\n`);
-      const docs = await ingestDocuments(provider, { db, allowProviderSwitch: Boolean(explicit) });
+      process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Cartografiando documentos con ${describeProvider(provider)}...\n`);
+      const docBar = new ProgressBar(1, "Iniciando análisis documental");
+      const docs = await ingestDocuments(provider, {
+        db,
+        allowProviderSwitch: Boolean(explicit),
+        onProgress: (current, total, file) => {
+          docBar.update(current, file);
+        },
+      });
+      docBar.finish(`Documentos cartografiados: ${docs.documents} (${docs.files} ficheros, ${docs.chunks} fragmentos)`);
 
-      process.stderr.write("[nexo-palace] indexando código y construyendo el grafo...\n");
-      const code = await extractCode(provider, { db, allowProviderSwitch: Boolean(explicit) });
+      process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Analizando código y tejiendo grafo de trazabilidad...\n`);
+      const codeBar = new ProgressBar(1, "Parseando AST y dependencias");
+      const code = await extractCode(provider, {
+        db,
+        allowProviderSwitch: Boolean(explicit),
+        onProgress: (current, total, file) => {
+          codeBar.update(current, file);
+        },
+      });
+      codeBar.finish(`Código analizado: ${code.files} ficheros, ${code.symbols} símbolos, ${code.tests} tests`);
 
       setMeta(db, "indexed_at", new Date().toISOString());
 
       const stats = indexStats(db);
       process.stdout.write(
+        "\n" +
         [
+          `\x1b[1m\x1b[32m✔ Cartografía completada con éxito\x1b[0m`,
           `Proyecto: ${getConfig().projectName} (${getConfig().root})`,
-          `Documentos: ${docs.documents} (${docs.files} ficheros, ${docs.chunks} fragmentos)`,
           `Requisitos detectados: ${docs.requirements}`,
-          `Código: ${code.files} ficheros, ${code.symbols} símbolos, ${code.tests} tests`,
           `Aristas del grafo: ${code.edges}`,
-          `Vectores: ${stats.vectors} (dim ${stats.dim}, proveedor ${stats.provider})`,
+          `Vectores en memoria: ${stats.vectors} (dim ${stats.dim}, proveedor ${stats.provider})`,
           docs.skippedShort > 0
-            ? `Fragmentos sin embedding por ser demasiado cortos: ${docs.skippedShort}`
+            ? `Fragmentos sin embedding por ser breves: ${docs.skippedShort}`
             : "",
           docs.errors.length > 0 ? `Errores: ${docs.errors.length}` : "",
           ...docs.errors.map((e) => `  - ${e}`),
         ]
           .filter(Boolean)
-          .join("\n") + "\n",
+          .join("\n") + "\n\n",
       );
       return 0;
     }

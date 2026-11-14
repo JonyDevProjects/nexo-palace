@@ -72,7 +72,7 @@ interface RawConfig {
  * `app/`, `components/` o `lib/`) lo declara en su fichero de configuración.
  */
 const DEFAULT_CONFIG: Omit<PalaceConfig, "root"> = {
-  docs: ["docs"],
+  docs: ["."],
   codeDirs: ["src", "lib", "app", "components", "tests", "test", "e2e"],
   codeExtensions: [".ts", ".tsx", ".js", ".jsx"],
   tasteDirs: [],
@@ -91,7 +91,32 @@ const DEFAULT_CONFIG: Omit<PalaceConfig, "root"> = {
     "playwright-report",
     ".vercel",
   ],
-  requirementPrefixes: ["EPC", "US", "ADR", "REQ", "TASK", "WP"],
+  requirementPrefixes: [
+    "RF",
+    "RNF",
+    "FR",
+    "NFR",
+    "HU",
+    "US",
+    "CU",
+    "UC",
+    "EPC",
+    "EPIC",
+    "REQ",
+    "TASK",
+    "TSK",
+    "ADR",
+    "RFC",
+    "SPEC",
+    "DES",
+    "TC",
+    "CP",
+    "AC",
+    "CA",
+    "BUG",
+    "FIX",
+    "WP",
+  ],
   projectName: "",
 };
 
@@ -169,9 +194,38 @@ function detectDecisionDirs(root: string): string[] {
   });
 }
 
+/**
+ * Detecta directorios de código estándar en la raíz o en subproyectos de primer nivel
+ * (por ejemplo `viz-app/src` o `packages/core/src`). Si no encuentra ninguno,
+ * devuelve `["."]` para indexar el código desde la raíz respetando `ignoreDirs`.
+ */
+function detectCodeDirs(root: string, ignoreDirs: string[]): string[] {
+  const found: string[] = [];
+
+  for (const dir of DEFAULT_CONFIG.codeDirs) {
+    if (existsSync(join(root, dir))) found.push(dir);
+  }
+
+  try {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith(".") || ignoreDirs.includes(entry.name)) continue;
+      for (const sub of DEFAULT_CONFIG.codeDirs) {
+        const rel = `${entry.name}/${sub}`;
+        if (existsSync(join(root, rel))) found.push(rel);
+      }
+    }
+  } catch {
+    // Ignorar errores de lectura de directorio
+  }
+
+  return found.length > 0 ? found : ["."];
+}
+
 /** Resuelve la configuración efectiva para una raíz de proyecto. */
 function buildConfig(root: string, raw: RawConfig): PalaceConfig {
   const docs = stringList(raw.docs, DEFAULT_CONFIG.docs);
+  const ignoreDirs = stringList(raw.ignoreDirs, DEFAULT_CONFIG.ignoreDirs);
   // Direcciones de decisión detectadas + declaradas por el usuario
   const detected = detectDecisionDirs(root);
   const userTaste = stringList(raw.tasteDirs, DEFAULT_CONFIG.tasteDirs);
@@ -185,12 +239,14 @@ function buildConfig(root: string, raw: RawConfig): PalaceConfig {
   return {
     root,
     docs,
-    codeDirs: stringList(raw.codeDirs, DEFAULT_CONFIG.codeDirs),
+    codeDirs: Array.isArray(raw.codeDirs)
+      ? stringList(raw.codeDirs, DEFAULT_CONFIG.codeDirs)
+      : detectCodeDirs(root, ignoreDirs),
     codeExtensions: stringList(raw.codeExtensions, DEFAULT_CONFIG.codeExtensions),
     tasteDirs: merged,
     decisionsFile,
     dbPath: dbPath.startsWith("/") ? dbPath : join(root, dbPath),
-    ignoreDirs: stringList(raw.ignoreDirs, DEFAULT_CONFIG.ignoreDirs),
+    ignoreDirs,
     requirementPrefixes: stringList(raw.requirementPrefixes, DEFAULT_CONFIG.requirementPrefixes),
     projectName: (raw.projectName ?? "").trim() || basename(root),
   };

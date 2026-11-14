@@ -229,8 +229,11 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
   static async discoverModel(apiKey: string): Promise<string | null> {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
-        { signal: AbortSignal.timeout(10_000) },
+        "https://generativelanguage.googleapis.com/v1beta/models",
+        {
+          headers: { "x-goog-api-key": apiKey },
+          signal: AbortSignal.timeout(10_000),
+        },
       );
       if (!res.ok) return null;
       const json = (await res.json()) as {
@@ -282,14 +285,17 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
 
   /** Genera un único embedding, reintentando ante 429 y errores transitorios. */
   private async embedOne(text: string, maxRetries: number): Promise<Float32Array> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${encodeURIComponent(this.apiKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent`;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         await geminiLimiter.acquire(this.minIntervalMs);
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": this.apiKey,
+          },
           body: JSON.stringify({
             model: `models/${this.model}`,
             content: { parts: [{ text }] },

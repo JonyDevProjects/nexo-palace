@@ -19,6 +19,16 @@ export function walkFiles(
   filter: (file: string) => boolean,
   out: string[] = [],
 ): string[] {
+  try {
+    const rootStats = statSync(dir);
+    if (rootStats.isFile()) {
+      if (filter(dir) && !out.includes(dir)) out.push(dir);
+      return out;
+    }
+  } catch {
+    return out;
+  }
+
   let entries: string[];
   try {
     entries = readdirSync(dir);
@@ -37,7 +47,7 @@ export function walkFiles(
     if (stats.isDirectory()) {
       if (getConfig().ignoreDirs.includes(entry)) continue;
       walkFiles(full, filter, out);
-    } else if (stats.isFile() && filter(full)) {
+    } else if (stats.isFile() && filter(full) && !out.includes(full)) {
       out.push(full);
     }
   }

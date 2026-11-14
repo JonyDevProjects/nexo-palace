@@ -5,7 +5,7 @@
  * y `sqlite-vec`), el esquema y las operaciones de escritura usadas por el
  * indexador. Todo el resto del motor habla con la base a través de este módulo.
  */
-import { mkdirSync, readFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
@@ -51,8 +51,10 @@ export function openDb(path: string = dbPath()): Db {
     instancePath = null;
   }
 
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const db = new Database(path) as Db;
+  // Set restrictive permissions on the database file
+  try { chmodSync(path, 0o600); } catch {}
 
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");

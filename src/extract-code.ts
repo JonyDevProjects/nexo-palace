@@ -253,7 +253,11 @@ function resolveRelativeImport(sf: SourceFile, specifier: string): string | null
  */
 export async function extractCode(
   provider: EmbeddingProvider,
-  options: { db?: Db; allowProviderSwitch?: boolean } = {},
+  options: {
+    db?: Db;
+    allowProviderSwitch?: boolean;
+    onProgress?: (current: number, total: number, message: string) => void;
+  } = {},
 ): Promise<CodeExtractResult> {
   const db = options.db ?? openDb();
   const errors: string[] = [];
@@ -302,10 +306,15 @@ export async function extractCode(
 
   const chunkTexts: string[] = [];
   const importsByFile: Array<{ relPath: string; imports: string[] }> = [];
+  const sourceFiles = project.getSourceFiles().filter((sf) => knownPaths.has(repoRelative(sf.getFilePath())));
+  let processedFiles = 0;
 
-  for (const sf of project.getSourceFiles()) {
+  for (const sf of sourceFiles) {
     const relPath = repoRelative(sf.getFilePath());
-    if (!knownPaths.has(relPath)) continue;
+    processedFiles++;
+    if (options.onProgress) {
+      options.onProgress(processedFiles, sourceFiles.length, relPath);
+    }
 
     const isTest = isTestPath(relPath);
     const nodeType = isTest ? "test" : "code";

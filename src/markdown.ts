@@ -55,16 +55,39 @@ export interface ParsedDoc {
 }
 
 /**
- * Alias de prefijos de trazabilidad: forma alternativa → forma canónica.
+ * Diccionario de equivalencias y alias de prefijos de trazabilidad (ES ↔ EN y variantes).
+ * Mapea formas alternativas, sinónimos y variantes multilingües hacia su forma canónica.
  *
- * `EPIC 01` es la variante en encabezados de `EPC-01`, y ambos deben acabar
- * en el mismo nodo del grafo. El destino solo se aplica si el proyecto
- * declara ese prefijo canónico.
+ * El destino se aplica si el proyecto declara ese prefijo canónico o la forma original.
  */
 const ALIASES: Record<string, string> = {
-  EPIC: "EPC",
-  HISTORY: "US",
+  // Requisitos funcionales y no funcionales
+  FR: "RF",
+  FUNC: "RF",
+  NFR: "RNF",
+  NONFUNC: "RNF",
+
+  // Historias de usuario y épicas
+  HU: "US",
+  HDU: "US",
   STORY: "US",
+  HISTORY: "US",
+  EPIC: "EPC",
+  EP: "EPC",
+
+  // Casos de uso
+  UC: "CU",
+
+  // Tareas y bugs
+  TSK: "TASK",
+  TAR: "TASK",
+  FIX: "BUG",
+  DEF: "BUG",
+
+  // Pruebas y criterios de aceptación
+  TC: "CP",
+  TEST: "CP",
+  AC: "CA",
 };
 
 /**
@@ -150,7 +173,6 @@ function assignKnown(key: string, value: string, meta: DocMeta): boolean {
     case "owner":
       meta.author = value;
       return true;
-    case "version":
     case "version":
     case "versio":
       meta.version = value;

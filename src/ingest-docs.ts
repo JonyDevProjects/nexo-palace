@@ -54,6 +54,8 @@ export interface IngestOptions {
   dryRun?: boolean;
   /** Elementos ya indexados (permite probar sin tocar la base). */
   db?: Db;
+  /** Callback para notificar progreso (fichero actual, total). */
+  onProgress?: (current: number, total: number, message: string) => void;
 }
 
 /** Nodo de requisito: un ID de trazabilidad como `EPC-01`. */
@@ -210,7 +212,12 @@ export async function ingestDocuments(
   let vectorCount = 0;
   let skippedShort = 0;
 
+  let processedFiles = 0;
   for (const file of parsedFiles) {
+    processedFiles++;
+    if (options.onProgress) {
+      options.onProgress(processedFiles, parsedFiles.length, file.relPath);
+    }
     const docNodeId = `doc:${file.relPath}`;
     const meta = file.parsed.meta;
     const status = inferStatus(meta, file.raw);

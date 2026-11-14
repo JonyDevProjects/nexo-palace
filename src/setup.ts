@@ -6,7 +6,8 @@
  *
  * Prioridad: litert > ollama > offline
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, existsSync } from "node:fs";
+import { readJsonFileSecure, writeJsonFileSecure } from "./installer.ts";
 import { join } from "node:path";
 
 const PROJECT_ROOT = process.cwd();
@@ -134,19 +135,18 @@ async function main(): Promise<void> {
   // Actualizar config si no hay provider explícito configurado
   const envProvider = process.env.PALACE_EMBED_PROVIDER;
   if (!envProvider) {
-    const configContent = existsSync(CONFIG_PATH) ? readFileSync(CONFIG_PATH, "utf8") : "{}";
     try {
-      const config = JSON.parse(configContent);
+      const config = readJsonFileSecure(CONFIG_PATH);
       if (!config.PALACE_EMBED_PROVIDER) {
         config.PALACE_EMBED_PROVIDER = selected;
-        writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+        writeJsonFileSecure(CONFIG_PATH, config);
       }
     } catch { /* config inválido, ignorar */ }
   }
 
   // Crear .env si no existe
   if (!existsSync(ENV_PATH)) {
-    writeFileSync(ENV_PATH, "# Configuración local de Nexo-Palace\n", "utf8");
+    writeFileSync(ENV_PATH, "# Configuración local de Nexo-Palace\n", { encoding: "utf8", mode: 0o600 });
   }
 
   console.log(getProviderRecommendations({ litert, ollama }));
