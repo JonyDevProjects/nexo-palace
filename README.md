@@ -17,60 +17,96 @@ Todo es local: un único fichero SQLite, sin servicios en la nube.
 └──────────────┘            └──────────────┘
 ```
 
+## Requisitos Previos
+
+Antes de instalar Nexo-Palace, verifica contar con:
+
+- **Node.js `>= 22.6.0`** (imprescindible para el *type-stripping* nativo de TypeScript y soporte SQLite moderno).
+- **npm `>= 10.0.0`** (o equivalente pnpm / yarn).
+- **Proveedor de Embeddings** (opcional pero recomendado para búsqueda semántica vectorial):
+  - **Opción A (Nube / Gratis):** Una API key de Google AI Studio (`GEMINI_API_KEY`). No requiere instalar ningún servicio local ni consume GPU/RAM.
+  - **Opción B (Local / Privado):** Python `>= 3.9` con `mlc-ai-litert`, u **Ollama** con el modelo `nomic-embed-text`.
+  - **Opción C (Cero dependencias / Offline):** Sin ningún proveedor externo (búsqueda léxica BM25 pura).
+
+---
+
 ## Instalación
 
-```bash
-npm install -g nexo-palace
-```
-
-O como dependencia local del proyecto:
+### Instalación Rápida con Asistente Interactivo (Recomendada)
+En la raíz de cualquier proyecto que desees cartografiar:
 
 ```bash
-npm install --save-dev nexo-palace
+npx @ijonydev/nexo-palace setup
 ```
+El asistente interactivo:
+1. Detectará si tienes servicios locales corriendo (`litert`, `ollama`).
+2. Te permitirá seleccionar el proveedor con las flechas del teclado (`↑`/`↓`) y confirmar con `Espacio` o `Enter`.
+3. Guardará la configuración protegida (`0600`) y te ofrecerá **cartografiar el proyecto de inmediato**.
 
-Requiere Node 22.6 o superior. Después de instalar, se ejecuta automáticamente `npm run setup` que detecta proveedores locales de embeddings disponibles.
+---
 
-## Proveedores de embeddings
-
-La búsqueda semántica requiere un proveedor de embeddings. La prioridad de detección automática es **litert → ollama → offline**.
-
-### LiteRT (recomendado)
-
-Servicio standalone que expone la API OpenAI-compatible `/v1/embeddings`:
+### Instalación como Dependencia en un Proyecto
 
 ```bash
-# Instalar
-pip install mlc-ai-litert
-
-# Arrancar servicio en puerto 11435
-python -m litert.serve --port 11435
-
-# Usa el modelo nomic-embed-text (descargado automáticamente)
-PALACE_EMBED_PROVIDER=litert node_modules/.bin/nexo-palace index
+npm install --save-dev @ijonydev/nexo-palace
 ```
 
-### Ollama (alternativa sencilla)
+Binarios disponibles tras instalar: **`nxpl`** (alias rápido) y **`nexo-palace`**.
 
+---
+
+## Guía de Configuración por Casos de Uso
+
+### Caso 1: Sin servicios locales, aprovechando Embeddings en la Nube (Gemini)
+Ideal si quieres máxima velocidad y semántica de alta calidad sin levantar servicios pesados en tu máquina:
+1. Obtén tu API Key gratuita en [aistudio.google.com](https://aistudio.google.com/).
+2. En la raíz de tu proyecto, crea o ajusta `nexo-palace.config.json`:
+   ```json
+   {
+     "PALACE_EMBED_PROVIDER": "gemini"
+   }
+   ```
+3. Añade tu clave en `.env`:
+   ```bash
+   GEMINI_API_KEY="AIzaSy..."
+   ```
+4. Cartografía el proyecto:
+   ```bash
+   npx nxpl map
+   ```
+
+### Caso 2: Entornos 100% Locales y Privados (Ollama o LiteRT)
+- **Con Ollama:**
+  ```bash
+  ollama pull nomic-embed-text
+  npx nxpl map --provider ollama
+  ```
+- **Con LiteRT:**
+  ```bash
+  pip install mlc-ai-litert
+  python -m litert.serve --port 11435
+  npx nxpl map --provider litert
+  ```
+
+### Caso 3: Modo Offline (Sin Red ni Motores Externos)
+Utiliza búsqueda léxica BM25 nativa en SQLite (FTS5). No requiere internet ni dependencias externas:
 ```bash
-# macOS
-brew install ollama && ollama pull nomic-embed-text && ollama serve &
-
-# Linux/Docker
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull nomic-embed-text
-
-# Indexa con ollama directamente
-PALACE_EMBED_PROVIDER=ollama node_modules/.bin/nexo-palace index
+npx nxpl map --provider offline
 ```
 
-### Offline (sin red)
+---
 
-Si no hay litert ni ollama corriendo, se usa hash-TF-IDF determinista sin conexión a internet. Solo BM25 léxico, sin comprensión semántica real:
+## Cómo pedirle a tu Asistente IA que lo instale y configure
 
-```bash
-PALACE_EMBED_PROVIDER=offline node_modules/.bin/nexo-palace index
-```
+Si estás usando Claude Code, Cursor, Windsurf, Antigravity o CommandCode, puedes copiar y pegar estos prompts:
+
+### Prompt General (Si tienes LiteRT u Ollama local)
+> "Instala `@ijonydev/nexo-palace` como dependencia de desarrollo (`npm install -D @ijonydev/nexo-palace`). Configura `nexo-palace.config.json` con `"PALACE_EMBED_PROVIDER": "litert"` (u `"ollama"`), ejecuta `npx nxpl map` para cartografiar el repositorio y añade el servidor MCP con el comando `npx` y argumentos `["--no-install", "nxpl", "serve"]`."
+
+### Prompt para usar Gemini API (Sin instalar servidores locales)
+> "Quiero instalar `@ijonydev/nexo-palace` con embeddings de Gemini. Instálalo como devDependency (`npm install -D @ijonydev/nexo-palace`), pon `"PALACE_EMBED_PROVIDER": "gemini"` en `nexo-palace.config.json` y asegúrate de que exista `GEMINI_API_KEY` en el `.env` (pídeme la clave si no la tienes). Luego corre `npx nxpl map` y registra el servidor MCP (`nxpl serve`)."
+
+---
 
 ## Configuración del proyecto
 
