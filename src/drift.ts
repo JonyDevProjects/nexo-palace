@@ -150,19 +150,19 @@ export function detectDrift(
     };
     events.push(event);
 
-    db.prepare(
-      `INSERT INTO drift_events (id, detected_at, requirement, doc_path, reason, commit_sha, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'open')`,
-    ).run(
-      `drift:${Date.now()}:${requirement}`,
-      new Date().toISOString(),
-      requirement,
-      info.docPath,
-      event.reason,
-      safeHeadSha(),
-    );
-
     if (options.mark !== false) {
+      db.prepare(
+        `INSERT INTO drift_events (id, detected_at, requirement, doc_path, reason, commit_sha, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'open')`,
+      ).run(
+        `drift:${Date.now()}:${requirement}`,
+        new Date().toISOString(),
+        requirement,
+        info.docPath,
+        event.reason,
+        safeHeadSha(),
+      );
+
       const reqNode = db.prepare("SELECT id, type, path, name, title FROM nodes WHERE id = ?").get(
         `req:${requirement}`,
       ) as { id: string; type: string; path: string | null; name: string; title: string | null } | undefined;
