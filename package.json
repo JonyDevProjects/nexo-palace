@@ -1,6 +1,6 @@
 {
   "name": "@ijonydev/nexo-palace",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Memoria de proyecto para agentes: índice híbrido (semántico + léxico) y grafo de trazabilidad, expuestos como CLI y servidor MCP.",
   "license": "MIT",
   "type": "module",
@@ -16,6 +16,7 @@
   },
   "files": [
     "bin/",
+    "dist/",
     "src/",
     "nexo-palace.config.example.json",
     "README.md",
@@ -32,6 +33,9 @@
     "knowledge-graph"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.js",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run build",
     "start": "node --experimental-strip-types src/cli.ts",
     "mcp": "node --experimental-strip-types src/server.ts",
     "test": "node --experimental-strip-types src/test-mcp.ts",
@@ -39,7 +43,7 @@
     "bench": "node --experimental-strip-types src/bench.ts",
     "typecheck": "tsc --noEmit",
     "setup": "node --experimental-strip-types src/installer.ts || true",
-    "postinstall": "node --experimental-strip-types src/installer.ts || true"
+    "postinstall": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('dist/installer.js')) import('./dist/installer.js'); })\" || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
