@@ -19,6 +19,7 @@
     "dist/",
     "src/",
     "nexo-palace.config.example.json",
+    "docs/assets/",
     "README.md",
     "README.en.md",
     "CONTRIBUTING.md",
@@ -41,6 +42,7 @@
     "test": "node --experimental-strip-types src/test-mcp.ts",
     "test:unit": "vitest run",
     "bench": "node --experimental-strip-types src/bench.ts",
+    "bench:agents": "node --experimental-strip-types scripts/bench-agents.ts",
     "typecheck": "tsc --noEmit",
     "setup": "node --experimental-strip-types src/installer.ts || true",
     "postinstall": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('dist/installer.js')) import('./dist/installer.js'); })\" || true"

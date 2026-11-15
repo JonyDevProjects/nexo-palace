@@ -19,6 +19,37 @@ Todo es local: un único fichero SQLite, sin servicios en la nube.
 └──────────────┘            └──────────────┘
 ```
 
+---
+
+## ⚡ Por qué Nexo-Palace: Eficiencia y Reducción de Costes
+
+Cuando un agente interactúa con un repositorio grande sin un índice estructurado, se ve obligado a leer archivos enteros y realizar búsquedas de texto secuenciales (`read_file`, `grep`), saturando la ventana de contexto y disparando la factura de tokens de la API.
+
+Con **Nexo-Palace**, el agente consulta un grafo de conocimiento precomputado y un índice híbrido (semántico vectorial + BM25) directamente en SQLite local:
+
+<p align="center">
+  <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Agente Tradicional — Benchmark de Eficiencia" width="100%" />
+</p>
+
+### Resultados Clave del Benchmark (Evaluación en Git Worktrees efímeros)
+
+| Métrica Clave | Con Nexo-Palace MCP | Sin MCP (Lectura Lineal) | Ahorro / Impacto |
+| :--- | :---: | :---: | :---: |
+| **Tokens de Contexto Promedio** | **2,955 tokens** | 18,561 tokens | **-84.1% de reducción** |
+| **Coste Estimado por Consulta ($)** | **$0.00830 USD** | $0.03205 USD | **-74.1% más económico** |
+| **Llamadas a Herramientas (Tool Calls)** | **1.7 llamadas** | 6.0 llamadas | **-71.7% menos roundtrips** |
+| **Tiempo de Respuesta (Latencia)** | **1.73s** | 5.25s | **3.0x más rápido** |
+| **Precisión frente a Ground Truth** | **98.5%** | 81.2% | **+17.3 pts de acierto** |
+
+> [!TIP]
+> **Rigor Técnico y Reproducibilidad:** Evaluado mediante el harness automatizado [`scripts/bench-agents.ts`](scripts/bench-agents.ts) sobre 6 modelos líderes —**Gemini 2.5 Flash/Pro**, **Claude 3.5 Sonnet/Haiku** y **GPT-4o/GPT-4o-mini**— cruzando 3 niveles de razonamiento (`low`, `medium`, `high`) en Git Worktrees aislados. Para reproducir el benchmark ejecuta:
+> ```bash
+> npm run bench:agents
+> ```
+> Consulta la [especificación técnica P5](docs/specs/P5-benchmark.md) y el [reporte detallado del benchmark](docs/benchmarks/P5-agent-benchmark-results.md).
+
+---
+
 ## Requisitos Previos
 
 Antes de instalar Nexo-Palace, verifica contar con:

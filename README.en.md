@@ -28,6 +28,35 @@ Everything is local: stored in a single SQLite file, with zero mandatory cloud d
 
 ---
 
+## ⚡ Why Nexo-Palace: Proven Efficiency & Cost Benchmark
+
+When an AI agent navigates a large codebase without a structured index, it is forced to scan entire files and run linear text searches (`read_file`, `grep`), quickly exhausting context windows and driving up LLM token costs.
+
+With **Nexo-Palace**, the agent queries an indexed knowledge graph and a hybrid retrieval system (semantic vector + BM25) directly from a local SQLite database:
+
+<p align="center">
+  <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Traditional Agent Benchmark" width="100%" />
+</p>
+
+### Benchmark Highlights (Ephemeral Git Worktrees across 6 leading LLMs)
+
+| Key Metric | With Nexo-Palace MCP | Without MCP (Linear Files) | Savings / Impact |
+| :--- | :---: | :---: | :---: |
+| **Average Context Tokens** | **2,955 tokens** | 18,561 tokens | **-84.1% reduction** |
+| **Cost per Query ($)** | **$0.00830 USD** | $0.03205 USD | **-74.1% cheaper** |
+| **Tool Call Roundtrips** | **1.7 calls** | 6.0 calls | **-71.7% fewer hops** |
+| **Resolution Latency** | **1.73s** | 5.25s | **3.0x faster** |
+| **Ground Truth Precision** | **98.5%** | 81.2% | **+17.3 pts accuracy** |
+
+> [!TIP]
+> **Technical Rigor & Reproducibility:** Evaluated using the automated harness [`scripts/bench-agents.ts`](scripts/bench-agents.ts) testing 6 leading models —**Gemini 2.5 Flash/Pro**, **Claude 3.5 Sonnet/Haiku**, and **GPT-4o/GPT-4o-mini**— across 3 reasoning efforts (`low`, `medium`, `high`) in isolated Git Worktrees. To reproduce the benchmark, run:
+> ```bash
+> npm run bench:agents
+> ```
+> Read the full [P5 technical specification](docs/specs/P5-benchmark.md) and the [detailed benchmark report](docs/benchmarks/P5-agent-benchmark-results.md).
+
+---
+
 ## Key Features
 
 - **Hybrid Search with Reciprocal Rank Fusion (RRF):** Combines FTS5 BM25 text relevance, exact keyword/identifier matches, and vector similarity (`sqlite-vec`).

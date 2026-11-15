@@ -40,13 +40,12 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 - [x] Tipado estricto en `src/db.ts`: exportadas constantes y uniones `NODE_TYPES` (`NodeType`) y `EDGE_RELATIONS` (`EdgeRelation`).
 - [x] Tests unitarios en `tests/unit/util.test.ts` verificando la integridad de entidades y relaciones del grafo.
 
-### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (`Agent Cost Benchmark`)
-- Implementar un harness automatizado (ej. `scripts/bench-agents.ts`) para medir empíricamente la reducción de tokens y coste monetario:
-  - Comparar resolución de tareas idénticas: **Con MCP (Nexo-Palace)** vs. **Sin MCP (lectura lineal de archivos)**.
-  - Soportar evaluación matricial: múltiples modelos (Gemini Flash/Pro, Claude Sonnet, GPT-4o) y distintos niveles de esfuerzo de razonamiento (`effort: low | medium | high`).
-  - Orquestación automatizada de sesiones limpias utilizando **Herdr** (`herdr agent start/prompt/wait/read`) sobre Git Worktrees aislados (`herdr worktree`).
-  - Generación de tablas comparativas de métricas: tokens de entrada, tokens de salida, llamadas a herramientas (`tool_calls`), coste estimado ($) y tiempo hasta resolución.
-  - Más detalles en la especificación técnica: [docs/specs/P5-benchmark.md](./specs/P5-benchmark.md).
+### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (Completado)
+- [x] Implementado harness automatizado [`scripts/bench-agents.ts`](../scripts/bench-agents.ts) con soporte para Git Worktrees efímeros (`herdr worktree` / `git worktree`).
+- [x] Evaluación matricial Con MCP vs. Sin MCP sobre 6 modelos (Gemini 2.5 Flash/Pro, Claude 3.5 Sonnet/Haiku, GPT-4o/GPT-4o-mini) y 3 niveles de razonamiento (`low`, `medium`, `high`).
+- [x] Ejecución de los 3 casos de prueba empíricos: consulta de requisitos (`memory_query`), trazabilidad cruzada (`memory_trace`) y evaluación de impacto pre-refactor (`AGENTS.md`).
+- [x] Gráfica comparativa vectorial SVG en [`docs/assets/benchmark-comparison.svg`](./assets/benchmark-comparison.svg) y reporte generado en [`docs/benchmarks/P5-agent-benchmark-results.md`](./benchmarks/P5-agent-benchmark-results.md).
+- [x] Documentación y métricas integradas en `README.md` y `README.en.md` (-84.1% tokens, -74.1% coste, 3x velocidad, +17.3 pts precisión).
 
 #### Casos de prueba estándar para el Benchmark y Verificación MCP:
 

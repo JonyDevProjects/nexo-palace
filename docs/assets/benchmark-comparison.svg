@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 520" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+
+    <!-- Card Background -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.9" />
+    </linearGradient>
+
+    <!-- Nexo-Palace Cyan/Emerald Gradient -->
+    <linearGradient id="mcpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+
+    <!-- Traditional Agent Rose/Slate Gradient -->
+    <linearGradient id="noMcpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#fb7185" />
+    </linearGradient>
+
+    <!-- Filter for subtle drop shadow -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <style>
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; font-size: 22px; fill: #f8fafc; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; fill: #94a3b8; }
+    .metric-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 14px; fill: #e2e8f0; }
+    .metric-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #64748b; }
+    .bar-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 600; font-size: 12px; fill: #f8fafc; }
+    .badge-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 12px; fill: #020617; }
+    .legend-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 600; fill: #cbd5e1; }
+    .kpi-val { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; font-size: 20px; fill: #38bdf8; }
+    .kpi-lbl { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; fill: #94a3b8; }
+  </style>
+
+  <!-- Container Box -->
+  <rect x="2" y="2" width="916" height="516" rx="16" fill="url(#bgGrad)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)" />
+
+  <!-- Header -->
+  <g transform="translate(36, 42)">
+    <text x="0" y="0" class="title">⚡ Nexo-Palace vs. Agente Tradicional — Benchmark de Eficiencia</text>
+    <text x="0" y="22" class="subtitle">Evaluación empírica en Git Worktrees efímeros sobre 6 modelos (Gemini 2.5, Claude 3.5, GPT-4o) y 3 niveles de razonamiento</text>
+  </g>
+
+  <!-- Top KPI Cards -->
+  <g transform="translate(36, 88)">
+    <!-- KPI 1 -->
+    <rect x="0" y="0" width="195" height="56" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="16" y="26" class="kpi-val">-84.1%</text>
+    <text x="16" y="44" class="kpi-lbl">Tokens de Contexto</text>
+
+    <!-- KPI 2 -->
+    <rect x="215" y="0" width="195" height="56" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="231" y="26" class="kpi-val">-74.1%</text>
+    <text x="231" y="44" class="kpi-lbl">Coste por Consulta ($)</text>
+
+    <!-- KPI 3 -->
+    <rect x="430" y="0" width="195" height="56" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="446" y="26" class="kpi-val">3.0x</text>
+    <text x="446" y="44" class="kpi-lbl">Más Rápido (Latencia)</text>
+
+    <!-- KPI 4 -->
+    <rect x="645" y="0" width="203" height="56" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="661" y="26" class="kpi-val">98.5%</text>
+    <text x="661" y="44" class="kpi-lbl">Precisión Ground Truth</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(620, 168)">
+    <rect x="0" y="2" width="14" height="14" rx="4" fill="url(#mcpGrad)" />
+    <text x="22" y="14" class="legend-text">Con Nexo-Palace MCP</text>
+    <rect x="180" y="2" width="14" height="14" rx="4" fill="url(#noMcpGrad)" />
+    <text x="202" y="14" class="legend-text">Sin MCP (Lectura Lineal)</text>
+  </g>
+
+  <!-- Comparison Bars -->
+  <g transform="translate(36, 196)">
+    <!-- ROW 1: Tokens de Contexto -->
+    <g transform="translate(0, 0)">
+      <text x="0" y="14" class="metric-title">Consumo de Tokens Promedio</text>
+      <text x="0" y="30" class="metric-sub">Ventana de contexto por consulta</text>
+      
+      <!-- Bar Background -->
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="#1e293b" />
+      <!-- No MCP Bar (100% baseline = 18,561) -->
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="730" y="21" class="bar-label" text-anchor="end">18,561 tokens</text>
+
+      <!-- Bar Background MCP -->
+      <rect x="260" y="34" width="480" height="24" rx="6" fill="#1e293b" />
+      <!-- MCP Bar (2,955 / 18,561 = 15.9% width -> 76px) -->
+      <rect x="260" y="34" width="76" height="24" rx="6" fill="url(#mcpGrad)" />
+      <text x="348" y="51" class="bar-label">2,955 tokens</text>
+
+      <!-- Badge -->
+      <rect x="756" y="18" width="92" height="26" rx="6" fill="#38bdf8" />
+      <text x="802" y="35" class="badge-text" text-anchor="middle">-84.1%</text>
+    </g>
+
+    <!-- ROW 2: Coste Estimado -->
+    <g transform="translate(0, 78)">
+      <text x="0" y="14" class="metric-title">Coste Estimado ($ USD)</text>
+      <text x="0" y="30" class="metric-sub">Gasto promedio por interacción</text>
+      
+      <!-- No MCP Bar -->
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="730" y="21" class="bar-label" text-anchor="end">$0.03205 USD</text>
+
+      <!-- MCP Bar (0.0083 / 0.03205 = 25.9% -> 124px) -->
+      <rect x="260" y="34" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="34" width="124" height="24" rx="6" fill="url(#mcpGrad)" />
+      <text x="396" y="51" class="bar-label">$0.00830 USD</text>
+
+      <!-- Badge -->
+      <rect x="756" y="18" width="92" height="26" rx="6" fill="#38bdf8" />
+      <text x="802" y="35" class="badge-text" text-anchor="middle">-74.1%</text>
+    </g>
+
+    <!-- ROW 3: Tool Calls -->
+    <g transform="translate(0, 156)">
+      <text x="0" y="14" class="metric-title">Llamadas a Herramientas</text>
+      <text x="0" y="30" class="metric-sub">Pasos I/O y roundtrips del agente</text>
+      
+      <!-- No MCP Bar (6.0 calls) -->
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="730" y="21" class="bar-label" text-anchor="end">6.0 roundtrips</text>
+
+      <!-- MCP Bar (1.7 calls -> 28.3% -> 136px) -->
+      <rect x="260" y="34" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="34" width="136" height="24" rx="6" fill="url(#mcpGrad)" />
+      <text x="408" y="51" class="bar-label">1.7 roundtrips</text>
+
+      <!-- Badge -->
+      <rect x="756" y="18" width="92" height="26" rx="6" fill="#38bdf8" />
+      <text x="802" y="35" class="badge-text" text-anchor="middle">-71.7%</text>
+    </g>
+
+    <!-- ROW 4: Latencia -->
+    <g transform="translate(0, 234)">
+      <text x="0" y="14" class="metric-title">Tiempo de Resolución (s)</text>
+      <text x="0" y="30" class="metric-sub">Latencia hasta respuesta final</text>
+      
+      <!-- No MCP Bar (5.25s) -->
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="4" width="480" height="24" rx="6" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="730" y="21" class="bar-label" text-anchor="end">5.25s</text>
+
+      <!-- MCP Bar (1.73s -> 33% -> 158px) -->
+      <rect x="260" y="34" width="480" height="24" rx="6" fill="#1e293b" />
+      <rect x="260" y="34" width="158" height="24" rx="6" fill="url(#mcpGrad)" />
+      <text x="430" y="51" class="bar-label">1.73s</text>
+
+      <!-- Badge -->
+      <rect x="756" y="18" width="92" height="26" rx="6" fill="#38bdf8" />
+      <text x="802" y="35" class="badge-text" text-anchor="middle">-67.0%</text>
+    </g>
+  </g>
+</svg>
