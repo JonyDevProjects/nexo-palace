@@ -46,6 +46,36 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
   - Soportar evaluación matricial: múltiples modelos (Gemini Flash/Pro, Claude Sonnet, GPT-4o) y distintos niveles de esfuerzo de razonamiento (`effort: low | medium | high`).
   - Orquestación automatizada de sesiones limpias utilizando **Herdr** (`herdr agent start/prompt/wait/read`) sobre Git Worktrees aislados (`herdr worktree`).
   - Generación de tablas comparativas de métricas: tokens de entrada, tokens de salida, llamadas a herramientas (`tool_calls`), coste estimado ($) y tiempo hasta resolución.
+  - Más detalles en la especificación técnica: [docs/specs/P5-benchmark.md](./specs/P5-benchmark.md).
+
+#### Casos de prueba estándar para el Benchmark y Verificación MCP:
+
+1. **Prueba de consulta de requisitos y decisiones (`memory_query`):**
+   - **Hipótesis:** En un enfoque tradicional sin MCP, el agente se ve obligado a leer secuencialmente archivos extensos (`docs/decisions.md` o múltiples specs en `docs/specs/`). Con Nexo-Palace, realiza una búsqueda directa indexada (vectorial y léxica RRF).
+   - **Prompts de prueba:**
+     - `¿Cuáles son los requisitos y decisiones de diseño relacionados con la detección de drift o desalineación en el proyecto?`
+     - `¿Qué decisiones se tomaron sobre el soporte de proveedores de embeddings locales (LiteRT vs Ollama)?`
+   - **Traza y comportamiento esperado:**
+     - Invocación de la herramienta MCP `memory_query` con parámetros contextuales (ej. `{ "query": "drift desalineación requisitos", "limit": 5 }`).
+     - Obtención inmediata de fragmentos exactos (`RF-xx`, fragmentos de specs/decisions) sin abrir archivos secuencialmente.
+
+2. **Prueba de trazabilidad cruzada de código (`memory_trace`):**
+   - **Hipótesis:** Sin MCP, el agente abre archivos `.ts` con `read_file`, inspecciona manualmente imports y ejecuta múltiples búsquedas grep para inferir qué tests cubren el módulo. Con `memory_trace`, consulta directamente el grafo precomputado.
+   - **Prompt de prueba:**
+     - `Muestra la trazabilidad de src/installer.ts: qué tests lo cubren, qué símbolos exporta y qué requisitos implementa.`
+   - **Traza y comportamiento esperado:**
+     - Invocación de `memory_trace` con `{ "filePath": "src/installer.ts" }`.
+     - Retorno instantáneo de nodos vinculados: tests (`tests/unit/installer.test.ts`), símbolos exportados (`registerAntigravity`, `detectClients`, etc.) y requisitos conectados en el grafo.
+
+3. **Prueba de impacto previo a un refactor (cumplimiento de directiva activa):**
+   - **Hipótesis:** Evaluar si el agente respeta las reglas de memoria activa y consulta el contexto del proyecto antes de modificar código, minimizando alucinaciones y regresiones.
+   - **Prompt de prueba:**
+     - `Quiero refactorizar src/server.ts. Antes de tocar código, consulta la memoria del proyecto para ver qué directivas, requisitos o tests dependen de él.`
+   - **Comportamiento esperado:**
+     - Cumplimiento de la directiva de memoria activa (`AGENTS.md`):
+       1. Ejecución de `memory_trace` sobre `src/server.ts`.
+       2. Ejecución de `memory_query` para revisar convenciones o requisitos asociados.
+       3. Ausencia total de lecturas lineales a ciegas de archivos no relacionados.
 
 ---
 
