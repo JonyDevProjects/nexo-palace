@@ -2,32 +2,36 @@
 /**
  * Lanzador de Nexo-Palace.
  *
- * El motor está escrito en TypeScript y se ejecuta con el "type stripping" de
- * Node. A partir de Node 22.18 y 23.6 esa capacidad viene activada de serie;
- * en versiones anteriores hay que pedirla con `--experimental-strip-types`.
+ * En producción (paquete NPM), ejecuta el código JavaScript compilado en `dist/cli.js`.
+ * Esto garantiza compatibilidad universal y evita la restricción de Node.js que impide
+ * realizar type-stripping sobre archivos TypeScript ubicados dentro de node_modules.
  *
- * Este lanzador comprueba si el runtime actual la soporta y, si no, se vuelve a
- * lanzar a sí mismo con la bandera. Se mantiene el mismo `stdio`, de modo que
- * el servidor MCP sigue hablando por el canal correcto.
+ * En desarrollo local sin compilar previa, recurre al código TypeScript en `src/cli.ts`
+ * utilizando `--experimental-strip-types` o el soporte nativo de Node.js según aplique.
  */
-import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CLI = join(HERE, "..", "src", "cli.ts");
+const DIST_CLI = join(HERE, "..", "dist", "cli.js");
+const SRC_CLI = join(HERE, "..", "src", "cli.ts");
 
-/** `process.features.typescript` existe cuando el type stripping es nativo. */
-const nativeTypeStripping =
-  typeof process.features.typescript === "string" && process.features.typescript !== "strip-only";
-
-if (nativeTypeStripping) {
-  await import(CLI);
+if (existsSync(DIST_CLI)) {
+  await import(DIST_CLI);
 } else {
-  const result = spawnSync(
-    process.execPath,
-    ["--experimental-strip-types", "--no-warnings", CLI, ...process.argv.slice(2)],
-    { stdio: "inherit" },
-  );
-  process.exit(result.status ?? 1);
+  const nativeTypeStripping =
+    typeof process.features.typescript === "string" && process.features.typescript !== "strip-only";
+
+  if (nativeTypeStripping) {
+    await import(SRC_CLI);
+  } else {
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync(
+      process.execPath,
+      ["--experimental-strip-types", "--no-warnings", SRC_CLI, ...process.argv.slice(2)],
+      { stdio: "inherit" },
+    );
+    process.exit(result.status ?? 1);
+  }
 }

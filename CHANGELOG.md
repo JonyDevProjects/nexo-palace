@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.3] - 2026-11-15
+
+### Fixed
+- **NPM Distribution & Node.js Type Stripping Limitation:**
+  - Resolved `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` caused by Node.js prohibiting `--experimental-strip-types` on files under `node_modules`.
+  - Added dedicated TypeScript compilation (`tsconfig.build.json`) outputting pure JavaScript ESM to `dist/` with full `.d.ts` declaration files.
+  - Added cross-platform asset copying (`scripts/copy-assets.js`) to bundle `src/schema.sql` into `dist/schema.sql`.
+  - Updated launcher `bin/nexo-palace.js` to prioritize compiled `dist/cli.js` when running from NPM/npx, with seamless fallback to `src/cli.ts` in local development environments.
+  - Updated `postinstall` script to safely execute compiled `dist/installer.js` when available.
+
+### Changed
+- **NPM Package Bundle:** Added `dist/` to `files` in `package.json` and introduced `build`, `prepare`, and `prepublishOnly` lifecycle hooks.
+- **Workspace Plugin MCP Config:** Updated `.agents/plugins/nexo-palace/mcp_config.json` to directly invoke local development server via Node in the authoring repository.
+
+---
+
 ## [0.1.2] - 2026-11-15
 
 ### Added
