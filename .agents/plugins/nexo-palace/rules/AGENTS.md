@@ -10,5 +10,8 @@ Este proyecto cuenta con el servidor MCP `nexo-palace` configurado para consulta
 2. **Registro de decisiones clave:**
    - Si introduces un cambio arquitectónico o tomas una decisión técnica de diseño importante, usa `memory_record_decision` para persistirla en la memoria del proyecto.
 
-3. **Verificación:**
-   - Puedes comprobar el estado del índice y número de fragmentos con `memory_status`.
+3. **Mapeo proactivo post-implementación:**
+   - Tras completar cualquier refactorización, merge de ramas, o creación de nuevos documentos, especificaciones, tests o código, el agente DEBE ejecutar proactivamente `npm start -- map` (o `nxpl map`) para mantener el grafo de trazabilidad y los embeddings sincronizados de forma continua sin esperar a una orden manual.
+
+4. **Verificación:**
+   - Puedes comprobar el estado del índice y número de fragmentos con `memory_status` (o `npm start -- stats`).
