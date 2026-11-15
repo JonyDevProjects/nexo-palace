@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.4] - 2026-11-16
+
+### Added
+- **MCP Roots Dynamic Workspace Support (`src/server.ts`):**
+  - Implemented dynamic workspace binding via MCP Roots (`server.server.listRoots()`) on initialization.
+  - Added reactive subscription to `RootsListChangedNotificationSchema` to rebind project root in hot-reload scenarios without restarting the MCP server.
+  - Added `pickWorkspaceRoot` prioritizing directories with existing `nexo-palace.config.json` or `.nexo-palace/`.
+- **Full MCP Operational Lifecycle Surface (`src/server.ts`):**
+  - Added **`memory_map`** tool allowing AI agents to trigger non-destructive reindexing after code edits directly through MCP.
+  - Added **`memory_drift`** tool enabling architectural drift checks across changed files.
+  - Expanded default MCP tool surface to 6 tools (`memory_query`, `memory_status`, `memory_trace`, `memory_record_decision`, `memory_map`, `memory_drift`), while preserving `PALACE_TOOLS=phase1` constraint mode.
+  - Enriched `memory_status` payload with `projectName`, `projectRoot`, `configFile`, `dbPath`, and configuration health warnings.
+- **Agent Integration & Multi-Harness Bootstrapper (`src/agent-integration.ts`, `src/cli.ts`):**
+  - Added `init-agent` (alias `init-rules`) CLI command with automated harness detection (`antigravity`, `cursor`, `claude`, `copilot`).
+  - Added idempotent rule generator supporting non-destructive managed blocks in `AGENTS.md`, `CLAUDE.md`, and `.github/copilot-instructions.md`.
+  - Added `.cursor/rules/nexo-palace.mdc` generator with `alwaysApply: true`.
+  - Added Antigravity workspace plugin generator (`.agents/plugins/nexo-palace/`) bundled with manifest, tools, rules, skills, and cross-platform `SessionStart` hook (`hooks/session-start.cjs`) to mitigate lazy-loading friction.
+  - Added safe Git hook generator supporting `.husky/` and `.git/hooks/` with `map --best-effort` on `post-commit` and `drift --dry-run` / `drift --strict` on `pre-push`.
+  - Added automatic injection of `palace:map`, `palace:drift`, and `palace:stats` scripts to `package.json`.
+- **Unified Mapping & Best-Effort Mode (`src/map.ts`):**
+  - Extracted unified mapping logic with `--best-effort` support to prevent accidental vector table destruction when remote/local embedding providers are temporarily unavailable.
+- **Architecture & DX Findings Document:**
+  - Published comprehensive findings and root-cause analysis report in [docs/mcp-agent-adoption-findings.md](docs/mcp-agent-adoption-findings.md).
+
+### Fixed
+- **CLI Serve Stdio Lifecycle Termination (`src/cli.ts`):**
+  - Resolved premature exit bug where `cli.ts serve` terminated with code 0 immediately after server instantiation. Process now properly blocks on `stdin` and `server.server.onclose`.
+- **Legacy Antigravity Config Hardcoded Root Sanitization (`src/installer.ts`):**
+  - Added automatic detection and sanitization of static `NEXO_PALACE_ROOT` entries in legacy `~/.gemini/antigravity/mcp_config.json`.
+- **Drift Detection Dry-Run Mutability (`src/drift.ts`):**
+  - Ensured `drift` with `mark: false` / `dryRun: true` does not mutate `drift_events` table in SQLite.
+
+---
+
 ## [0.1.3] - 2026-11-15
 
 ### Fixed
