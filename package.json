@@ -16,6 +16,8 @@
     "src/",
     "nexo-palace.config.example.json",
     "README.md",
+    "README.en.md",
+    "CONTRIBUTING.md",
     "LICENSE"
   ],
   "keywords": [

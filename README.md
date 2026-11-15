@@ -1,5 +1,7 @@
 # Nexo-Palace
 
+[English](README.en.md) | [Español](README.md) · [Guía de Contribución](CONTRIBUTING.md)
+
 Memoria de proyecto para agentes.
 
 Convierte la documentación, el código y las convenciones de un repositorio en
