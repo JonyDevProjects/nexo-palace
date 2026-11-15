@@ -38,6 +38,13 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 ### P4 — Limpieza del esquema SQLite
 - Revisar `src/schema.sql` para implementar o eliminar relaciones declaradas sin uso actual (`derived_from`, `deprecated_by`) y evitar confusión en mantenimiento.
 
+### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (`Agent Cost Benchmark`)
+- Implementar un harness automatizado (ej. `scripts/bench-agents.ts`) para medir empíricamente la reducción de tokens y coste monetario:
+  - Comparar resolución de tareas idénticas: **Con MCP (Nexo-Palace)** vs. **Sin MCP (lectura lineal de archivos)**.
+  - Soportar evaluación matricial: múltiples modelos (Gemini Flash/Pro, Claude Sonnet, GPT-4o) y distintos niveles de esfuerzo de razonamiento (`effort: low | medium | high`).
+  - Orquestación automatizada de sesiones limpias utilizando **Herdr** (`herdr agent start/prompt/wait/read`) sobre Git Worktrees aislados (`herdr worktree`).
+  - Generación de tablas comparativas de métricas: tokens de entrada, tokens de salida, llamadas a herramientas (`tool_calls`), coste estimado ($) y tiempo hasta resolución.
+
 ---
 
 ## 3. Evolución de Trazabilidad y Memoria (Inspirado en Graphify / Engram)
@@ -57,12 +64,15 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 
 Hoy `nexo-palace` detecta requisitos por regex de prefijos (`RF-001`, `US-101`) y convenciones (`taste`) solo en rutas fijas (`DECISION_DIRS`). Para convivir con harnesses como **CommandCode**, **Claude Code**, **Cursor** o **Antigravity**, se proponen 5 líneas de evolución:
 
-### 4.1. Detección multi-harness de convenciones (`taste`)
+### 4.1. Detección multi-harness de convenciones (`taste`) e integración con Herdr
 Ampliar el descubridor en `src/config.ts` para reconocer automáticamente los ficheros estándar de reglas de agentes y etiquetarlos con el tipo de nodo `taste` (prioritario frente a `doc` genérico):
 - `.commandcode/taste/*.md`
 - `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`
 - `.cursorrules` y `.cursor/rules/*.mdc` (soportando frontmatter `globs` / `alwaysApply`)
 - `.github/copilot-instructions.md`
+- **Integración nativa con Herdr (Multi-Agent Swarm Memory):**
+  - Soporte para que múltiples agentes que corran simultáneamente en paneles/workspaces de Herdr compartan una misma base de memoria viva (`.nexo-palace/memory.sqlite3`).
+  - Habilitar que las decisiones registradas por un agente en un panel (`memory_record_decision`) estén inmediatamente disponibles para los agentes en los demás paneles (`memory_query`), reduciendo redundancia en swarms y equipos autónomos.
 
 ### 4.2. Parseo de metadatos y ponderación por confianza (`Confidence`)
 En `.commandcode/taste/taste.md`, CommandCode registra preferencias aprendidas con un valor de confianza (ej. `- ... Confidence: 0.9`).
