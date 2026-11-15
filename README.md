@@ -11,13 +11,12 @@ que el proyecto ya sabe en lugar de releer ficheros linealmente.
 
 Todo es local: un único fichero SQLite, sin servicios en la nube.
 
-```
-┌──────────────┐   index    ┌──────────────┐   query    ┌──────────────┐
-│  docs/       │ ─────────► │  SQLite      │ ◄───────── │  agentes     │
-│  código      │            │  FTS5 + vec  │            │  MCP / CLI   │
-│  taste/      │            │  + grafo     │            └──────────────┘
-└──────────────┘            └──────────────┘
-```
+
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Arquitectura del Sistema Nexo-Palace" width="100%" />
+</p>
+
+> 💡 *Para interactuar con la suite visual (zoom, filtrado de capas y ERD de SQLite), consulta la [Documentación de Arquitectura](docs/architecture/README.md).*
 
 ---
 

@@ -19,6 +19,12 @@ Everything is local: stored in a single SQLite file, with zero mandatory cloud d
 └──────────────┘            └──────────────┘
 ```
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Nexo-Palace System Architecture" width="100%" />
+</p>
+
+> 💡 *To explore the full interactive architecture suite (with zoom, layer filtering, and SQLite ERD), check the [Visual Architecture Documentation](docs/architecture/README.md).*
+
 ---
 
 ## The Problem & The Solution

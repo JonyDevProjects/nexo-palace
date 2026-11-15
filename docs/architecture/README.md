@@ -18,6 +18,10 @@ Cada diagrama ha sido compilado como un archivo HTML autónomo e interactivo con
 
 ## 1. Arquitectura Global del Sistema
 
+<p align="center">
+  <img src="../assets/architecture.png" alt="Arquitectura Global del Sistema" width="100%" />
+</p>
+
 Nexo-Palace convierte el código fuente, la documentación y las convenciones de cualquier proyecto en un grafo de conocimiento y memoria unificada local sin depender de clústeres externos:
 
 ```mermaid
