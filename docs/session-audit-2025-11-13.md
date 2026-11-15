@@ -53,20 +53,11 @@ Todo funciona localmente: SQLite + embeddings locales o Gemini/Ollama, sin servi
 
 ## Próximos pasos (orden de prioridad y viabilidad)
 
-### P1 — Publicar el paquete en npm
-Sin publicar en npm, el proyecto no tiene ciclo de vida real. Verificar scripts de entrada (`bin/nexo-palace.js`, `src/cli.ts`, `src/server.ts`) con instalación limpia antes de publicar.
-
-### P2 — CI/CD mínimo (GitHub Actions)
-Workflow que ejecute `npm run typecheck` + `npm test` en cada push/PR. Bajo coste, alto impacto en confianza.
-
-### P3 — Expandir suite de pruebas
-Migrar de smoke tests manuales a framework con unit tests para `query.ts`, `ingest-docs.ts`, `extract-code.ts`, y más escenarios integrados del MCP.
-
-### P4 — Traducir README a inglés
-Cambio mayor para adopción externa. Aportaría contributor guide y bilingual documentation.
-
-### P5 — Limpiar esquema: implementar o eliminar `derived_from` / `deprecated_by`
-Cosmético pero elimina confusiones futuras en mantenimiento.
+- [x] **P1 — Publicar el paquete en npm:** Publicado en NPM como `@ijonydev/nexo-palace`.
+- [x] **P2 — CI/CD mínimo (GitHub Actions):** Workflow automatizado en `.github/workflows/ci.yml`.
+- [x] **P3 — Expandir suite de pruebas:** Suite completa con 47 tests unitarios en Vitest (`tests/unit/`).
+- [x] **P4 — Traducir README a inglés:** Documentación bilingüe con `README.en.md` y `CONTRIBUTING.md`.
+- [x] **P5 — Limpiar esquema: implementar o eliminar `derived_from` / `deprecated_by`:** Eliminadas relaciones no utilizadas de `src/schema.sql`, añadidos tipos estrictos `NODE_TYPES` y `EDGE_RELATIONS` en `src/db.ts` con tests en `util.test.ts`.
 
 ### Futuro (fuera de prioridad inmediata)
 

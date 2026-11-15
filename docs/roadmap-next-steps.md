@@ -35,8 +35,10 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 ### P3 — Documentación bilingüe (Inglés / Español)
 - Traducir o mantener versión en inglés del `README.md` (`README.en.md` o README principal en inglés + `README.es.md`) y añadir una guía de contribución (`CONTRIBUTING.md`) para adopción externa.
 
-### P4 — Limpieza del esquema SQLite
-- Revisar `src/schema.sql` para implementar o eliminar relaciones declaradas sin uso actual (`derived_from`, `deprecated_by`) y evitar confusión en mantenimiento.
+### P4 — Limpieza y tipado del esquema SQLite (Completado)
+- [x] Depurado `src/schema.sql`: eliminadas relaciones fantasma (`derived_from`, `deprecated_by`) e incorporado `symbol` como tipo de nodo oficial.
+- [x] Tipado estricto en `src/db.ts`: exportadas constantes y uniones `NODE_TYPES` (`NodeType`) y `EDGE_RELATIONS` (`EdgeRelation`).
+- [x] Tests unitarios en `tests/unit/util.test.ts` verificando la integridad de entidades y relaciones del grafo.
 
 ### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (`Agent Cost Benchmark`)
 - Implementar un harness automatizado (ej. `scripts/bench-agents.ts`) para medir empíricamente la reducción de tokens y coste monetario:
