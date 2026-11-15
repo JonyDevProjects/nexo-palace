@@ -336,17 +336,45 @@ export function getAntigravityGlobalConfigPath(): string {
   return join(homedir(), ".gemini", "config", "mcp_config.json");
 }
 
+/** Devuelve la ruta legacy/IDE de configuración MCP para Google Antigravity */
+export function getAntigravityLegacyConfigPath(): string {
+  return join(homedir(), ".gemini", "antigravity", "mcp_config.json");
+}
+
 /** Devuelve la ruta del plugin de workspace para Antigravity */
 export function getAntigravityPluginConfigPath(projectRoot: string): string {
   return join(projectRoot, ".agents", "plugins", "nexo-palace", "mcp_config.json");
 }
 
+/**
+ * Si existe un archivo legacy (`~/.gemini/antigravity/mcp_config.json`) con una
+ * entrada de `nexo-palace`, la actualiza para eliminar rutas fijas (`NEXO_PALACE_ROOT`).
+ */
+function sanitizeAntigravityLegacyConfig(legacyPath: string): void {
+  if (!existsSync(legacyPath)) return;
+  try {
+    const parsed = readJsonFileSecure(legacyPath);
+    const servers = parsed.mcpServers as Record<string, unknown> | undefined;
+    if (servers && "nexo-palace" in servers) {
+      injectMcpServerConfig(legacyPath);
+    }
+  } catch {
+    /* no bloqueante */
+  }
+}
+
 /** Comprueba si Google Antigravity o el plugin de agentes está presente */
-export function isAntigravityDetected(projectRoot = PROJECT_ROOT, customGlobalPath?: string): boolean {
+export function isAntigravityDetected(
+  projectRoot = PROJECT_ROOT,
+  customGlobalPath?: string,
+  customLegacyPath?: string,
+): boolean {
   const globalPath = customGlobalPath ?? getAntigravityGlobalConfigPath();
+  const legacyPath = customLegacyPath ?? getAntigravityLegacyConfigPath();
   return (
     isCommandAvailable("agy") ||
     existsSync(globalPath) ||
+    existsSync(legacyPath) ||
     existsSync(dirname(globalPath)) ||
     existsSync(join(homedir(), ".gemini")) ||
     existsSync(join(projectRoot, ".agents"))
@@ -356,8 +384,11 @@ export function isAntigravityDetected(projectRoot = PROJECT_ROOT, customGlobalPa
 /** Registra Nexo-Palace en Google Antigravity (vía CLI agy, plugin de workspace o mcp_config.json) */
 export function registerAntigravity(
   projectRoot = PROJECT_ROOT,
-  options?: { customGlobalPath?: string; skipCli?: boolean },
+  options?: { customGlobalPath?: string; customLegacyPath?: string; skipCli?: boolean },
 ): { success: boolean; method: string; path?: string; error?: string } {
+  const legacyPath = options?.customLegacyPath ?? getAntigravityLegacyConfigPath();
+  sanitizeAntigravityLegacyConfig(legacyPath);
+
   // 1. Si agy CLI está disponible en el PATH y no se solicita omitir, registrar con agy mcp add
   if (!options?.skipCli && isCommandAvailable("agy")) {
     try {
@@ -403,6 +434,15 @@ export function registerAntigravity(
       return { success: true, method: "global-config", path: globalPath };
     } catch (err) {
       return { success: false, method: "global-config", path: globalPath, error: (err as Error).message };
+    }
+  }
+
+  if (existsSync(legacyPath)) {
+    try {
+      injectMcpServerConfig(legacyPath);
+      return { success: true, method: "legacy-config", path: legacyPath };
+    } catch (err) {
+      return { success: false, method: "legacy-config", path: legacyPath, error: (err as Error).message };
     }
   }
 
@@ -602,14 +642,31 @@ export async function main(): Promise<void> {
       "¿Deseas registrar automáticamente Nexo-Palace como servidor MCP en tus clientes instalados (Claude Desktop, Cursor, Antigravity)?",
       true,
     );
+    const effectiveRoot = getConfig().root || PROJECT_ROOT;
     if (shouldRegisterMcp) {
       console.log("\n🔌 Registrando Nexo-Palace en clientes MCP...");
-      const report = autoRegisterMcpClients(getConfig().root || PROJECT_ROOT);
+      const report = autoRegisterMcpClients(effectiveRoot);
       printMcpRegistrationReport(report);
     } else {
       console.log(
         "\nPuedes configurar tu cliente MCP manualmente añadiendo el comando:\n  \x1b[36mnpx -y @ijonydev/nexo-palace serve\x1b[0m\n",
       );
+    }
+
+    const shouldInitAgent = await confirmPrompt(
+      "¿Deseas generar reglas obligatorias de uso para tus agentes IA (Antigravity, Cursor, Claude), scripts npm y Git hooks?",
+      true,
+    );
+    if (shouldInitAgent) {
+      const { initAgentIntegration } = await import("./agent-integration.ts");
+      const agentReport = initAgentIntegration(effectiveRoot);
+      console.log(`\n🤖 Integración de agentes configurada (${agentReport.harnesses.join(", ")}):`);
+      for (const entry of agentReport.changes) {
+        console.log(`   - [${entry.action}] ${entry.path}${entry.reason ? ` (${entry.reason})` : ""}`);
+      }
+      console.log("");
+    } else {
+      console.log("\nPuedes configurarlo más adelante ejecutando:\n  \x1b[36mnxpl init-agent\x1b[0m\n");
     }
   } catch (err) {
     // Si el usuario cancela (Ctrl+C) o hay error, no romper la instalación

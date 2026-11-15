@@ -30,6 +30,7 @@ import { OfflineEmbeddingProvider } from "./embedder.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, "server.ts");
+const CLI = join(HERE, "cli.ts");
 
 /** Ejecuta una comprobación y anota el resultado. */
 let failures = 0;
@@ -213,8 +214,18 @@ async function checkPhase1(client: Client): Promise<void> {
   // --- memory_status ---------------------------------------------------------
   const status = await client.callTool({ name: "memory_status", arguments: {} });
   const statusText = (status.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
-  const statusPayload = JSON.parse(statusText) as { chunks: number; nodes: number };
+  const statusPayload = JSON.parse(statusText) as {
+    chunks: number;
+    nodes: number;
+    projectName?: string;
+    projectRoot?: string;
+  };
   check("memory_status informa del índice", statusPayload.chunks > 0, `${statusPayload.nodes} nodos`);
+  check(
+    "memory_status incluye projectName y projectRoot",
+    statusPayload.projectName === "fixture-test" && Boolean(statusPayload.projectRoot),
+    `${statusPayload.projectName} @ ${statusPayload.projectRoot}`,
+  );
 }
 
 async function main(): Promise<void> {
@@ -229,10 +240,15 @@ async function main(): Promise<void> {
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
     check(
-      "la superficie por defecto incluye las cuatro herramientas",
-      ["memory_query", "memory_status", "memory_trace", "memory_record_decision"].every((n) =>
-        names.includes(n),
-      ),
+      "la superficie por defecto incluye las seis herramientas",
+      [
+        "memory_query",
+        "memory_status",
+        "memory_trace",
+        "memory_record_decision",
+        "memory_map",
+        "memory_drift",
+      ].every((n) => names.includes(n)),
       names.join(", "),
     );
     await checkPhase1(client);
@@ -284,6 +300,40 @@ async function main(): Promise<void> {
       decisionPayload.tasteFile,
     );
 
+    // --- memory_map ----------------------------------------------------------
+    const mapped = await client.callTool({
+      name: "memory_map",
+      arguments: {},
+    });
+    const mappedText = (mapped.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const mappedPayload = JSON.parse(mappedText) as {
+      skipped: boolean;
+      projectName: string;
+      stats: { nodes: number };
+    };
+    check(
+      "memory_map sincroniza el índice manteniendo el proyecto",
+      mappedPayload.skipped === false &&
+        mappedPayload.projectName === "fixture-test" &&
+        mappedPayload.stats.nodes > 0,
+      `${mappedPayload.stats.nodes} nodos`,
+    );
+
+    // --- memory_drift --------------------------------------------------------
+    const drift = await client.callTool({
+      name: "memory_drift",
+      arguments: { dryRun: true },
+    });
+    const driftText = (drift.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const driftPayload = JSON.parse(driftText) as {
+      changedFiles: unknown[];
+      events: unknown[];
+    };
+    check(
+      "memory_drift responde con estructura válida",
+      Array.isArray(driftPayload.changedFiles) && Array.isArray(driftPayload.events),
+    );
+
     await client.close();
 
     // --- Superficie restringida: solo Fase 1 ---------------------------------
@@ -291,10 +341,36 @@ async function main(): Promise<void> {
     const phase1Names = (await phase1.listTools()).tools.map((t) => t.name).sort();
     check(
       "PALACE_TOOLS=phase1 restringe la superficie",
-      !phase1Names.includes("memory_trace") && !phase1Names.includes("memory_record_decision"),
+      !phase1Names.includes("memory_trace") &&
+        !phase1Names.includes("memory_record_decision") &&
+        !phase1Names.includes("memory_map") &&
+        !phase1Names.includes("memory_drift"),
       phase1Names.join(", "),
     );
     await phase1.close();
+
+    // --- CLI `serve` sin NEXO_PALACE_ROOT (resolución dinámica por cwd) -------
+    const envWithoutRoot = { ...process.env } as Record<string, string>;
+    delete envWithoutRoot.NEXO_PALACE_ROOT;
+    delete envWithoutRoot.NEXO_PALACE_CONFIG;
+    const cliTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: ["--experimental-strip-types", "--no-warnings", CLI, "serve"],
+      cwd: fixtureRoot,
+      stderr: "pipe",
+      env: envWithoutRoot,
+    });
+    const cliClient = new Client({ name: "palace-cli-serve-test", version: "0.1.0" });
+    await cliClient.connect(cliTransport);
+    const cliStatus = await cliClient.callTool({ name: "memory_status", arguments: {} });
+    const cliStatusText = (cliStatus.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const cliStatusPayload = JSON.parse(cliStatusText) as { projectName: string };
+    check(
+      "cli.ts serve permanece vivo y resuelve el workspace dinámico por cwd",
+      cliStatusPayload.projectName === "fixture-test",
+      cliStatusPayload.projectName,
+    );
+    await cliClient.close();
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });
   }

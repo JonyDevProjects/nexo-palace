@@ -225,12 +225,14 @@ The configuration file is searched **upwards** from the current working director
 
 ```bash
 nexo-palace index                                  # Index documentation and source code
+nexo-palace map --best-effort                      # Reindex safely preserving existing vectors (hook-friendly)
 nexo-palace query "WCAG accessibility criteria"    # Run a hybrid search query
 nexo-palace trace "components/menu/MenuEditor.tsx" # Inspect graph traceability
-nexo-palace drift --dry-run                         # Detect architectural drift
+nexo-palace drift --dry-run [--strict]              # Detect architectural drift (--strict exits 1 on events)
 nexo-palace decide --context "..." --decision "..." # Record a persistent decision
 nexo-palace stats                                   # Display index statistics
-nexo-palace serve                                   # Start MCP server over stdio
+nexo-palace init-agent [--harness all] [--dry-run]  # Generate agent rules, plugin, npm scripts & Git hooks
+nexo-palace serve                                   # Start MCP server over stdio (supports MCP Roots)
 ```
 
 Global options: `--root <dir>` and `--config <file>`, which override automatic discovery.
@@ -240,6 +242,8 @@ Global options: `--root <dir>` and `--config <file>`, which override automatic d
 ### MCP Server
 
 Nexo-Palace integrates as a standard MCP server for any AI client (Claude Desktop, Cursor, VS Code, Google Antigravity).
+
+> ⚠️ **Important regarding workspace roots:** Do not hardcode `NEXO_PALACE_ROOT` in global MCP configurations when working across multiple repositories. Without a fixed `NEXO_PALACE_ROOT`, the server resolves the active repository dynamically via **MCP Roots** (`roots/list` & `roots/list_changed`) or the active working directory (`cwd`).
 
 #### Universal Zero-Config Setup (Recommended)
 For **Claude Desktop**, **Cursor**, or **VS Code**, add Nexo-Palace under your `mcpServers` block:
@@ -278,16 +282,18 @@ Register the universal server directly into your harness:
 agy mcp add nexo-palace npx --arg="-y" --arg="@ijonydev/nexo-palace" --arg="serve"
 ```
 
-> 💡 **Tip:** When running `npx @ijonydev/nexo-palace setup`, the interactive wizard automatically detects your installed clients (Claude Desktop, Cursor, Antigravity) and configures them for you.
+> 💡 **Tip:** Run `npx @ijonydev/nexo-palace setup` for guided setup, or `npx @ijonydev/nexo-palace init-agent` to automatically generate agent steering rules (`.agents/rules/nexo-palace.md`, `.cursor/rules/nexo-palace.mdc`, `CLAUDE.md`, `.github/copilot-instructions.md`), an Antigravity workspace plugin with a `SessionStart` bootstrap hook, `palace:*` npm scripts, and safe Git hooks (`post-commit` / `pre-push`).
 
 #### Tools Exposed via MCP
 
 | Tool | Description |
 | :--- | :--- |
 | `memory_query(query, scope?, limit?, pathPrefix?)` | Hybrid search across documentation, code symbols, unit tests, and conventions. |
-| `memory_status()` | Returns index statistics: nodes, chunks, vectors, and active embedding provider. |
+| `memory_status()` | Returns active project, resolved root, nodes, chunks, vectors, and embedding provider. |
 | `memory_trace(entity, depth?)` | Extracts the traceability subgraph for a file or symbol: requirements, tests, documents, conventions, and dependencies. |
 | `memory_record_decision(context, decision, tags?, relatedFiles?)` | Persists an architectural decision, links it in the graph, and appends it to the decisions file. |
+| `memory_map(provider?, allowProviderSwitch?)` | Reindexes code and documentation changes while preserving the index embedding provider. |
+| `memory_drift(baseRef?, dryRun?)` | Checks which linked requirements are affected by recent Git changes. |
 
 To restrict the exposed tool surface during initial evaluation:
 
