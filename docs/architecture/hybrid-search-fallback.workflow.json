@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Nexo-Palace — Flujo de Búsqueda Híbrida y Fallback Léxico",
+    "subtitle": "Ejecución desacoplada de canales léxico y vectorial con tolerancia total a fallos",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "output": "docs/architecture/hybrid-search-fallback.html"
+  },
+  "lanes": [
+    { "id": "client_lane", "label": "Cliente MCP / Agente IA" },
+    { "id": "engine_lane", "label": "Motor de Búsqueda (query.ts)" },
+    { "id": "lexical_lane", "label": "Canal Léxico (SQLite FTS5)" },
+    { "id": "vector_lane", "label": "Canal Vectorial (Embeddings & vec0)" },
+    { "id": "fusion_lane", "label": "Capa de Fusión RRF (Ranking)" }
+  ],
+  "phases": [
+    { "id": "ph_intake", "label": "1. Entrada", "fromCol": 0, "toCol": 1 },
+    { "id": "ph_parallel", "label": "2. Canales Paralelos", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "ph_resilience", "label": "3. Resiliencia & Fallback", "fromCol": 4, "toCol": 4, "variant": "security" },
+    { "id": "ph_delivery", "label": "4. Fusión y Salida", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "lexical_pipe", "label": "Canal Léxico (SQLite)", "lane": "lexical_lane", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "vector_pipe", "label": "Canal Vectorial (k-NN)", "lane": "vector_lane", "fromCol": 2, "toCol": 3, "variant": "dashed" }
+  ],
+  "mainPath": ["req_agent", "parse_dispatch", "fts_search", "literal_check", "lexical_success", "rrf_combiner", "final_response"],
+  "nodes": [
+    { "id": "req_agent", "lane": "client_lane", "col": 0, "type": "external", "label": "Petición del Agente", "sublabel": "memory_query('texto')", "width": 160 },
+    { "id": "parse_dispatch", "lane": "engine_lane", "col": 1, "type": "backend", "label": "Parser & Dispatcher", "sublabel": "Separa tokens e IDs", "tag": "query.ts", "width": 160 },
+
+    { "id": "fts_search", "lane": "lexical_lane", "col": 2, "type": "database", "label": "chunks_fts (FTS5)", "sublabel": "Búsqueda BM25", "tag": "Siempre activo", "width": 160 },
+    { "id": "literal_check", "lane": "lexical_lane", "col": 3, "type": "database", "label": "Coincidencia Literal", "sublabel": "RF-xx, US-xx, código", "tag": "LIKE Escape", "width": 160 },
+    { "id": "lexical_success", "lane": "lexical_lane", "col": 4, "type": "database", "label": "Ranking Léxico Listo", "sublabel": "Resultados exactos", "width": 160 },
+
+    { "id": "embed_call", "lane": "vector_lane", "col": 2, "type": "cloud", "label": "provider.embed()", "sublabel": "Gemini / Ollama", "width": 160 },
+    { "id": "vec_knn", "lane": "vector_lane", "col": 3, "type": "database", "label": "chunks_vec (vec0)", "sublabel": "k-NN Distancia Coseno", "width": 160 },
+    { "id": "vector_error", "lane": "vector_lane", "col": 4, "type": "security", "label": "Fallo Capturado", "sublabel": "fetch failed / offline", "tag": "catch(err) seguro", "width": 160 },
+
+    { "id": "rrf_combiner", "lane": "fusion_lane", "col": 4, "type": "backend", "label": "Fusión RRF (K=60)", "sublabel": "1/(60+rank) + boost", "tag": "Reciprocal Rank", "width": 160 },
+    { "id": "final_response", "lane": "client_lane", "col": 5, "type": "backend", "label": "Respuesta al Agente", "sublabel": "Markdown + Chunks + Score", "width": 160 }
+  ],
+  "edges": [
+    { "id": "e_intake", "from": "req_agent", "to": "parse_dispatch", "label": "JSON-RPC", "variant": "emphasis" },
+    { "id": "e_to_fts", "from": "parse_dispatch", "to": "fts_search", "label": "BM25 query" },
+    { "id": "e_fts_literal", "from": "fts_search", "to": "literal_check", "variant": "default" },
+    { "id": "e_literal_done", "from": "literal_check", "to": "lexical_success", "variant": "default" },
+
+    { "id": "e_to_embed", "from": "parse_dispatch", "to": "embed_call", "label": "Calcula vector", "variant": "dashed" },
+    { "id": "e_embed_knn", "from": "embed_call", "to": "vec_knn", "label": "vector float[]" },
+    { "id": "e_knn_rrf", "from": "vec_knn", "to": "rrf_combiner", "label": "ranking k-NN" },
+
+    { "id": "e_embed_fail", "from": "embed_call", "to": "vector_error", "label": "sin internet / cuota", "variant": "security", "role": "error" },
+    { "id": "e_knn_fail", "from": "vec_knn", "to": "vector_error", "label": "error provider", "variant": "security", "role": "error" },
+    { "id": "e_error_fallback", "from": "vector_error", "to": "lexical_success", "label": "Fallback 100% Léxico", "variant": "security", "role": "branch" },
+
+    { "id": "e_lexical_rrf", "from": "lexical_success", "to": "rrf_combiner", "label": "ranking BM25", "variant": "emphasis" },
+    { "id": "e_rrf_reply", "from": "rrf_combiner", "to": "final_response", "label": "TOP N ordenados", "variant": "emphasis", "role": "return" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Por qué el Canal Léxico Nunca Afecta al Vectorial",
+      "items": [
+        "Las tablas chunks_fts y chunks_vec son completamente independientes en SQLite",
+        "Si falla la llamada a Gemini (Error: fetch failed), el espacio vectorial en disco queda 100% intacto",
+        "Al recuperarse la conexión a internet, el sistema vuelve automáticamente al modo híbrido sin reindexar"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Fórmula de Fusión RRF (Reciprocal Rank Fusion)",
+      "items": [
+        "Score Base = 1 / (60 + Rank_Léxico) + 1 / (60 + Rank_Vectorial)",
+        "Boost Literal = +0.5 si el fragmento contiene el nombre exacto de un símbolo o requisito",
+        "Filtro de Ruido = Descarta fragmentos con puntuaciones irrelevantes"
+      ]
+    }
+  ]
+}

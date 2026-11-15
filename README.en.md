@@ -200,18 +200,46 @@ Global options: `--root <dir>` and `--config <file>`, which override automatic d
 
 ### MCP Server
 
-Configure Nexo-Palace in your MCP client configuration:
+Nexo-Palace integrates as a standard MCP server for any AI client (Claude Desktop, Cursor, VS Code, Google Antigravity).
+
+#### Universal Zero-Config Setup (Recommended)
+For **Claude Desktop**, **Cursor**, or **VS Code**, add Nexo-Palace under your `mcpServers` block:
 
 ```json
 {
   "mcpServers": {
     "nexo-palace": {
-      "command": "nexo-palace",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@ijonydev/nexo-palace",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+*If you installed Nexo-Palace globally (`npm install -g @ijonydev/nexo-palace`), you can use:*
+```json
+{
+  "mcpServers": {
+    "nexo-palace": {
+      "command": "nxpl",
       "args": ["serve"]
     }
   }
 }
 ```
+
+#### For Google Antigravity (`agy`)
+Register the universal server directly into your harness:
+
+```bash
+agy mcp add nexo-palace npx --arg="-y" --arg="@ijonydev/nexo-palace" --arg="serve"
+```
+
+> 💡 **Tip:** When running `npx @ijonydev/nexo-palace setup`, the interactive wizard automatically detects your installed clients (Claude Desktop, Cursor, Antigravity) and configures them for you.
 
 #### Tools Exposed via MCP
 

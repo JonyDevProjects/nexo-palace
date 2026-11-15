@@ -1,5 +1,6 @@
-# Dependencias
+# Dependencias y herramientas
 node_modules/
+.archify-tool/
 
 # Artefactos locales del motor (índice SQLite, bases de la comparativa)
 .nexo-palace/

@@ -1,10 +1,11 @@
 {
   "mcpServers": {
     "nexo-palace": {
-      "command": "node",
+      "command": "npx",
       "args": [
-        "--experimental-strip-types",
-        "src/server.ts"
+        "-y",
+        "@ijonydev/nexo-palace",
+        "serve"
       ]
     }
   }

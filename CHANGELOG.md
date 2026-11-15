@@ -7,19 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.1.2] - 2026-11-15
 
 ### Added
+- **Automatic MCP Client Discovery & Configuration (`src/installer.ts`):**
+  - Interactive setup prompt offering zero-config auto-registration for installed AI clients.
+  - Automatic detection and atomic configuration for **Claude Desktop** (cross-platform config paths), **Cursor** (global `~/.cursor/mcp.json` and project-level `.cursor/mcp.json`), **Google Antigravity** (`agy mcp add` CLI integration and plugin sync), and **VS Code** (`.vscode/mcp.json`).
+  - Standardized universal server command `npx -y @ijonydev/nexo-palace serve` and `nxpl serve` eliminating broken absolute or relative local development file paths.
+- **Interactive Visual Architecture Suite ([docs/architecture/](docs/architecture/)):**
+  - Comprehensive architectural documentation compiled into standalone interactive HTML diagrams with [Archify](https://github.com/tt-a1i/archify):
+    - Global system architecture (`nexo-palace-architecture.html`).
+    - Decoupled hybrid search and lexical fallback workflow (`hybrid-search-fallback.html`).
+    - SQLite memory relational and virtual table ERD (`memory-database.html`).
+    - Central architecture guide ([docs/architecture/README.md](docs/architecture/README.md)) with embedded Mermaid diagrams.
 - **CI/CD Pipeline (`.github/workflows/ci.yml`):** Automated checks for `main` and `develop` running TypeScript typecheck (`tsc --noEmit`), Vitest suite (`vitest run`), and NPM packaging validation (`npm pack --dry-run`) on Node.js 22.
-- **Unit Test Coverage for Engine:**
+- **Unit Test Coverage Expansion:**
+  - `tests/unit/installer.test.ts`: Added 7 new unit tests for atomic MCP configuration injection and client discovery.
   - `tests/unit/query.test.ts`: Added tests for Reciprocal Rank Fusion (RRF), BM25 lexical mode, mock vector search, and path/scope filters.
   - `tests/unit/trace.test.ts`: Added tests for graph traversal, entity resolution by file/symbol, candidate detection, and relationship hops (`tests`, `requirements`, `imports`).
-  - Total test count expanded from 24 to 38 unit tests (100% passing).
+  - Test suite expanded to 45 unit tests (100% passing).
 - **Internationalization (i18n):**
   - Added full English documentation in `README.en.md`.
   - Added bilingual language switcher (`[English](README.en.md) | [Español](README.md)`) to both README files.
 - **Community & Collaboration (`CONTRIBUTING.md`):** Complete guide covering Gitflow development workflow, Conventional Commits, code standards, and local verification commands.
 - **Gitflow Architecture:** Established protected `main` and active integration `develop` branches with automated worktree orchestration via Herdr.
+
+### Changed
+- **Workspace Plugin MCP Config:** Updated `.agents/plugins/nexo-palace/mcp_config.json` to use standard `npx -y @ijonydev/nexo-palace serve` instead of local development paths.
+- **Documentation:** Updated `README.md` and `README.en.md` with explicit MCP client configuration examples for Claude Desktop, Cursor, VS Code, and Google Antigravity.
 
 ---
 

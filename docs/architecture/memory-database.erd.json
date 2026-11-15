@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Nexo-Palace — Modelo de Datos (.nexo-palace/memory.sqlite3)",
+    "subtitle": "Esquema unificado en SQLite: Grafo de trazabilidad, FTS5 léxico y sqlite-vec",
+    "output": "docs/architecture/memory-database.html",
+    "quality_profile": "showcase"
+  },
+  "layout": {
+    "mode": "grid",
+    "gapY": 40,
+    "gapX": 60
+  },
+  "entities": [
+    {
+      "id": "nodes",
+      "label": "nodes",
+      "tag": "graph",
+      "row": 0,
+      "col": 0,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "TEXT", "key": "pk" },
+        { "name": "type", "type": "TEXT" },
+        { "name": "path", "type": "TEXT" },
+        { "name": "name", "type": "TEXT" },
+        { "name": "status", "type": "TEXT" },
+        { "name": "title", "type": "TEXT" },
+        { "name": "meta", "type": "TEXT" },
+        { "name": "updated_at", "type": "TEXT" }
+      ]
+    },
+    {
+      "id": "edges",
+      "label": "edges",
+      "tag": "graph",
+      "row": 1,
+      "col": 0,
+      "width": 240,
+      "attributes": [
+        { "name": "source_id", "type": "TEXT", "key": ["pk", "fk"], "references": "nodes.id" },
+        { "name": "target_id", "type": "TEXT", "key": ["pk", "fk"], "references": "nodes.id" },
+        { "name": "relation", "type": "TEXT", "key": "pk" },
+        { "name": "confidence", "type": "REAL" },
+        { "name": "meta", "type": "TEXT" }
+      ]
+    },
+    {
+      "id": "chunks",
+      "label": "chunks",
+      "tag": "retrieval",
+      "row": 0,
+      "col": 1,
+      "width": 250,
+      "attributes": [
+        { "name": "id", "type": "TEXT", "key": "pk" },
+        { "name": "node_id", "type": "TEXT", "key": "fk", "references": "nodes.id" },
+        { "name": "seq", "type": "INTEGER" },
+        { "name": "content", "type": "TEXT" },
+        { "name": "header_path", "type": "TEXT" },
+        { "name": "token_est", "type": "INTEGER" },
+        { "name": "req_ids", "type": "TEXT" },
+        { "name": "content_hash", "type": "TEXT" }
+      ]
+    },
+    {
+      "id": "chunks_fts",
+      "label": "chunks_fts (FTS5)",
+      "tag": "retrieval",
+      "row": 1,
+      "col": 1,
+      "width": 250,
+      "attributes": [
+        { "name": "chunk_id", "type": "UNINDEXED", "key": "fk", "references": "chunks.id" },
+        { "name": "content", "type": "TEXT (tokenized)" },
+        { "name": "header_path", "type": "UNINDEXED" },
+        { "name": "node_id", "type": "UNINDEXED" }
+      ]
+    },
+    {
+      "id": "chunks_vec",
+      "label": "chunks_vec (vec0)",
+      "tag": "retrieval",
+      "row": 2,
+      "col": 1,
+      "width": 250,
+      "attributes": [
+        { "name": "chunk_id", "type": "TEXT", "key": ["pk", "fk"], "references": "chunks.id" },
+        { "name": "embedding", "type": "float[dim]" }
+      ]
+    },
+    {
+      "id": "episodes",
+      "label": "episodes",
+      "tag": "governance",
+      "row": 0,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "TEXT", "key": "pk" },
+        { "name": "created_at", "type": "TEXT" },
+        { "name": "context", "type": "TEXT" },
+        { "name": "decision", "type": "TEXT" },
+        { "name": "tags", "type": "TEXT" },
+        { "name": "source", "type": "TEXT" }
+      ]
+    },
+    {
+      "id": "drift_events",
+      "label": "drift_events",
+      "tag": "governance",
+      "row": 1,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "TEXT", "key": "pk" },
+        { "name": "detected_at", "type": "TEXT" },
+        { "name": "requirement", "type": "TEXT" },
+        { "name": "doc_path", "type": "TEXT" },
+        { "name": "reason", "type": "TEXT" },
+        { "name": "commit_sha", "type": "TEXT" },
+        { "name": "status", "type": "TEXT" }
+      ]
+    },
+    {
+      "id": "meta",
+      "label": "meta",
+      "tag": "governance",
+      "row": 2,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "key", "type": "TEXT", "key": "pk" },
+        { "name": "value", "type": "TEXT" }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "edges_source_node",
+      "from": "edges",
+      "to": "nodes",
+      "label": "source",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "chunks_node",
+      "from": "chunks",
+      "to": "nodes",
+      "label": "belongs to",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "fts_chunk",
+      "from": "chunks_fts",
+      "to": "chunks",
+      "label": "lexical index",
+      "fromCardinality": "one",
+      "toCardinality": "one"
+    },
+    {
+      "id": "vec_chunk",
+      "from": "chunks_vec",
+      "to": "chunks",
+      "label": "vector index",
+      "fromCardinality": "one",
+      "toCardinality": "one"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Desacoplamiento Estructural",
+      "items": [
+        "chunks_fts (BM25) y chunks_vec (k-NN) son tablas virtuales separadas",
+        "Ambas apuntan a chunks.id pero no dependen entre sí",
+        "Cambiar de proveedor de embeddings solo recrea chunks_vec sin tocar chunks_fts"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Grafo de Trazabilidad Integrado",
+      "items": [
+        "nodes almacena archivos, símbolos de código (AST), requisitos y tests",
+        "edges vincula implements, tests, contains y depends_on",
+        "Permite consultas transversales: Requisito -> Test -> Código -> Documento"
+      ]
+    }
+  ]
+}
