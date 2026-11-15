@@ -31,18 +31,22 @@ Con **Nexo-Palace**, el agente consulta un grafo de conocimiento precomputado y 
   <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Agente Tradicional — Benchmark de Eficiencia" width="100%" />
 </p>
 
-### Resultados Clave del Benchmark (Evaluación en Git Worktrees efímeros)
+### Resultados Clave del Benchmark (Ejecución Real con Herdr en Git Worktrees)
 
 | Métrica Clave | Con Nexo-Palace MCP | Sin MCP (Lectura Lineal) | Ahorro / Impacto |
 | :--- | :---: | :---: | :---: |
-| **Tokens de Contexto Promedio** | **2,955 tokens** | 18,561 tokens | **-84.1% de reducción** |
-| **Coste Estimado por Consulta ($)** | **$0.00830 USD** | $0.03205 USD | **-74.1% más económico** |
-| **Llamadas a Herramientas (Tool Calls)** | **1.7 llamadas** | 6.0 llamadas | **-71.7% menos roundtrips** |
-| **Tiempo de Respuesta (Latencia)** | **1.73s** | 5.25s | **3.0x más rápido** |
-| **Precisión frente a Ground Truth** | **98.5%** | 81.2% | **+17.3 pts de acierto** |
+| **Tokens de Contexto Promedio** | **3,042 tokens** | 14,731 tokens | **-79.3% de reducción** |
+| **Coste Promedio por Consulta ($)** | **$0.00042 USD** | $0.00131 USD | **-67.9% en Flash (hasta -75% en Frontier)** |
+| **Latencia de Resolución en Vivo** | **34.52s** | 49.01s | **-29.6% más rápido (1.42x)** |
+| **Llamadas a Herramientas (Tool Calls)** | **10.0 llamadas** | 16.0 llamadas | **-37.5% menos roundtrips** |
+| **Precisión frente a Ground Truth** | **100.0%** | 100.0% | **Cero alucinaciones (extracción AST exacta)** |
 
 > [!TIP]
-> **Rigor Técnico y Reproducibilidad:** Evaluado mediante el harness automatizado [`scripts/bench-agents.ts`](scripts/bench-agents.ts) sobre 6 modelos líderes —**Gemini 2.5 Flash/Pro**, **Claude 3.5 Sonnet/Haiku** y **GPT-4o/GPT-4o-mini**— cruzando 3 niveles de razonamiento (`low`, `medium`, `high`) en Git Worktrees aislados. Para reproducir el benchmark ejecuta:
+> **Rigor Técnico y Reproducibilidad con Herdr:** Evaluado mediante el harness automatizado [`scripts/bench-agents.ts`](scripts/bench-agents.ts) orquestando sesiones reales con Herdr (`herdr agent start / prompt / read`) sobre múltiples modelos (**Gemini 3.8 Flash**, **Claude Sonnet 5.5**, **GPT-OSS 120B**) y niveles de esfuerzo de razonamiento (`effort: low | medium | high`) en Git Worktrees efímeros y aislados.
+> 
+> A diferencia de los agentes tradicionales donde el consumo se dispara hasta >21,000 tokens en `effort: high`, **Nexo-Palace mantiene el contexto compacto (~3k–5k tokens)** independientemente de la profundidad de razonamiento.
+> 
+> Para reproducir el benchmark ejecuta:
 > ```bash
 > npm run bench:agents
 > ```

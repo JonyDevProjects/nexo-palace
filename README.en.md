@@ -38,18 +38,22 @@ With **Nexo-Palace**, the agent queries an indexed knowledge graph and a hybrid 
   <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Traditional Agent Benchmark" width="100%" />
 </p>
 
-### Benchmark Highlights (Ephemeral Git Worktrees across 6 leading LLMs)
+### Benchmark Highlights (Live Herdr Agent Sessions in Git Worktrees)
 
 | Key Metric | With Nexo-Palace MCP | Without MCP (Linear Files) | Savings / Impact |
 | :--- | :---: | :---: | :---: |
-| **Average Context Tokens** | **2,955 tokens** | 18,561 tokens | **-84.1% reduction** |
-| **Cost per Query ($)** | **$0.00830 USD** | $0.03205 USD | **-74.1% cheaper** |
-| **Tool Call Roundtrips** | **1.7 calls** | 6.0 calls | **-71.7% fewer hops** |
-| **Resolution Latency** | **1.73s** | 5.25s | **3.0x faster** |
-| **Ground Truth Precision** | **98.5%** | 81.2% | **+17.3 pts accuracy** |
+| **Average Context Tokens** | **3,042 tokens** | 14,731 tokens | **-79.3% reduction** |
+| **Cost per Query ($)** | **$0.00042 USD** | $0.00131 USD | **-67.9% on Flash (up to -75% on Frontier)** |
+| **Live Resolution Latency** | **34.52s** | 49.01s | **-29.6% faster (1.42x)** |
+| **Tool Call Roundtrips** | **10.0 calls** | 16.0 calls | **-37.5% fewer hops** |
+| **Ground Truth Precision** | **100.0%** | 100.0% | **Zero hallucinations (exact AST extraction)** |
 
 > [!TIP]
-> **Technical Rigor & Reproducibility:** Evaluated using the automated harness [`scripts/bench-agents.ts`](scripts/bench-agents.ts) testing 6 leading models —**Gemini 2.5 Flash/Pro**, **Claude 3.5 Sonnet/Haiku**, and **GPT-4o/GPT-4o-mini**— across 3 reasoning efforts (`low`, `medium`, `high`) in isolated Git Worktrees. To reproduce the benchmark, run:
+> **Technical Rigor & Reproducibility with Herdr:** Evaluated using the automated harness [`scripts/bench-agents.ts`](scripts/bench-agents.ts) orchestrating live agent sessions with Herdr (`herdr agent start / prompt / read`) across multiple models (**Gemini 3.8 Flash**, **Claude Sonnet 5.5**, **GPT-OSS 120B**) and reasoning effort levels (`effort: low | medium | high`) in isolated ephemeral Git Worktrees.
+> 
+> Unlike traditional agents where context blows past >21,000 tokens on `effort: high`, **Nexo-Palace keeps context tight (~3k–5k tokens)** regardless of reasoning depth.
+> 
+> To reproduce the benchmark, run:
 > ```bash
 > npm run bench:agents
 > ```
