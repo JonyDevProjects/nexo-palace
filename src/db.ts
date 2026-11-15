@@ -197,9 +197,34 @@ export function ensureVecTable(
 // Operaciones de escritura
 // -----------------------------------------------------------------------------
 
+/** Tipos válidos de nodos en el grafo de conocimiento */
+export const NODE_TYPES = [
+  "doc",
+  "code",
+  "test",
+  "taste",
+  "requirement",
+  "decision",
+  "symbol",
+] as const;
+
+export type NodeType = (typeof NODE_TYPES)[number];
+
+/** Tipos válidos de relaciones en el grafo de trazabilidad */
+export const EDGE_RELATIONS = [
+  "implements",
+  "tests",
+  "contains",
+  "governed_by",
+  "depends_on",
+  "references",
+] as const;
+
+export type EdgeRelation = (typeof EDGE_RELATIONS)[number];
+
 export interface NodeRecord {
   id: string;
-  type: string;
+  type: NodeType | string;
   path?: string | null;
   name: string;
   status?: string | null;
@@ -236,7 +261,7 @@ export function upsertNode(db: Db, node: NodeRecord): void {
 export interface EdgeRecord {
   sourceId: string;
   targetId: string;
-  relation: string;
+  relation: EdgeRelation | string;
   confidence?: number;
   meta?: Record<string, unknown> | null;
 }

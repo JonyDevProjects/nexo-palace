@@ -22,10 +22,10 @@ CREATE TABLE IF NOT EXISTS meta (
 
 -- -----------------------------------------------------------------------------
 -- Nodos: la unicidad de cada entidad del proyecto.
---   type    : doc | code | test | taste | requirement | decision
+--   type    : doc | code | test | taste | requirement | decision | symbol
 --   path    : ruta relativa al repositorio (NULL para nodos virtuales)
 --   name    : identificador legible (nombre de archivo, símbolo, ID de épica)
---   status  : estado editorial/técnico (draft, NEEDS_REVIEW, accepted, ...)
+--   status  : estado editorial/técnico (draft, NEEDS_REVIEW, accepted, active...)
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS nodes (
   id        TEXT PRIMARY KEY,
@@ -44,8 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_nodes_name ON nodes(name);
 
 -- -----------------------------------------------------------------------------
 -- Aristas: relaciones del grafo de trazabilidad.
---   relation : implements | tests | contains | governed_by | depends_on
---               | references | derived_from | deprecated_by
+--   relation : implements | tests | contains | governed_by | depends_on | references
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS edges (
   source_id  TEXT NOT NULL,

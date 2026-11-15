@@ -80,3 +80,32 @@ describe("walkFiles", () => {
     expect(results).toEqual([]);
   });
 });
+
+describe("schema types and relations (P4)", () => {
+  it("NODE_TYPES contiene todas las entidades válidas del motor sin duplicados", async () => {
+    const { NODE_TYPES } = await import("../../src/db.ts");
+    expect(NODE_TYPES).toContain("doc");
+    expect(NODE_TYPES).toContain("code");
+    expect(NODE_TYPES).toContain("test");
+    expect(NODE_TYPES).toContain("taste");
+    expect(NODE_TYPES).toContain("requirement");
+    expect(NODE_TYPES).toContain("decision");
+    expect(NODE_TYPES).toContain("symbol");
+    expect(new Set(NODE_TYPES).size).toBe(NODE_TYPES.length);
+  });
+
+  it("EDGE_RELATIONS contiene exactamente las 6 relaciones activas del grafo sin relaciones fantasma", async () => {
+    const { EDGE_RELATIONS } = await import("../../src/db.ts");
+    expect(EDGE_RELATIONS).toEqual([
+      "implements",
+      "tests",
+      "contains",
+      "governed_by",
+      "depends_on",
+      "references",
+    ]);
+    // Comprobar que las relaciones obsoletas o no implementadas fueron eliminadas
+    expect((EDGE_RELATIONS as readonly string[]).includes("derived_from")).toBe(false);
+    expect((EDGE_RELATIONS as readonly string[]).includes("deprecated_by")).toBe(false);
+  });
+});
