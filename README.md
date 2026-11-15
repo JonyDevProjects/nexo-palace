@@ -195,12 +195,14 @@ El fichero se busca **hacia arriba** desde el directorio actual, de modo que fun
 
 ```bash
 nexo-palace index                                  # indexa documentación y código
+nexo-palace map --best-effort                      # reindexa preservando el proveedor actual (ideal para hooks)
 nexo-palace query "criterios de aceptación WCAG"    # consulta híbrida
 nexo-palace trace "components/menu/MenuEditor.tsx"   # traza el grafo
-nexo-palace drift --dry-run                         # detecta deriva
+nexo-palace drift --dry-run [--strict]              # detecta deriva (--strict devuelve exit 1 si hay eventos)
 nexo-palace decide --context "..." --decision "..." # registra una decisión
 nexo-palace stats                                   # estado del índice
-nexo-palace serve                                   # servidor MCP por stdio
+nexo-palace init-agent [--harness all] [--dry-run]  # genera reglas de agente, plugin, scripts npm y Git hooks
+nexo-palace serve                                   # servidor MCP por stdio (con soporte MCP Roots)
 ```
 
 Opciones globales: `--root <dir>` y `--config <fichero>`, que tienen prioridad
@@ -209,6 +211,8 @@ sobre la detección automática.
 ### Servidor MCP
 
 Nexo-Palace se integra como servidor MCP estándar para cualquier cliente de IA (Claude Desktop, Cursor, VS Code, Google Antigravity).
+
+> ⚠️ **Importante sobre la raíz del proyecto:** No fijes `NEXO_PALACE_ROOT` en configuraciones globales si trabajas en varios repositorios. Al omitir `NEXO_PALACE_ROOT`, el servidor resuelve el proyecto automáticamente mediante **MCP Roots** (`roots/list` y `roots/list_changed`) o el `cwd` del espacio de trabajo activo.
 
 #### Configuración Universal Zero-Config (Recomendada)
 Para **Claude Desktop**, **Cursor** o **VS Code**, añade en el bloque `mcpServers` de tu archivo de configuración:
@@ -247,16 +251,18 @@ Registra el servidor universal directamente en tu arnés con:
 agy mcp add nexo-palace npx --arg="-y" --arg="@ijonydev/nexo-palace" --arg="serve"
 ```
 
-> 💡 **Tip:** Al ejecutar `npx @ijonydev/nexo-palace setup`, el asistente interactivo detecta automáticamente tus clientes instalados (Claude Desktop, Cursor, Antigravity) y los configura por ti.
+> 💡 **Tip:** Ejecuta `npx @ijonydev/nexo-palace setup` para configuración guiada, o `npx @ijonydev/nexo-palace init-agent` para generar automáticamente reglas obligatorias (`.agents/rules/nexo-palace.md`, `.cursor/rules/nexo-palace.mdc`, `CLAUDE.md`, `.github/copilot-instructions.md`), el plugin de Antigravity con hook `SessionStart`, los scripts `palace:*` en `package.json` y Git hooks seguros (`post-commit` / `pre-push`).
 
-Expone cuatro herramientas:
+Expone seis herramientas:
 
 | Herramienta | Qué hace |
 | :--- | :--- |
 | `memory_query(query, scope?, limit?, pathPrefix?)` | Búsqueda híbrida sobre documentación, código, tests y convenciones. |
-| `memory_status()` | Estado del índice: nodos, fragmentos, vectores y proveedor de embeddings. |
+| `memory_status()` | Estado del índice: proyecto activo, raíz resuelta, nodos, fragmentos, vectores y proveedor. |
 | `memory_trace(entity, depth?)` | Subgrafo de trazabilidad de un archivo o símbolo: requisitos, tests, documentos, convenciones y dependencias. |
 | `memory_record_decision(context, decision, tags?, relatedFiles?)` | Persiste una decisión y la enlaza en el grafo y en el fichero de decisiones. |
+| `memory_map(provider?, allowProviderSwitch?)` | Reindexa cambios de código y documentación conservando el proveedor del índice. |
+| `memory_drift(baseRef?, dryRun?)` | Comprueba qué requisitos vinculados se ven afectados por cambios recientes en Git. |
 
 Para restringir la superficie mientras se valida:
 

@@ -24,3 +24,8 @@
 * **Decisión:** Implementar compilación previa a dist/ mediante tsconfig.build.json, script de copia de schema.sql, scripts build/prepare/prepublishOnly en package.json y lanzador bin/nexo-palace.js híbrido con fallback a TypeScript en desarrollo
 * **Archivos relacionados:** bin/nexo-palace.js, package.json, tsconfig.build.json, scripts/copy-assets.js
 * **Episodio:** `decision:2026-11-15T10-49-06-232Z`
+### 2026-11-15 — mcp, roots, agent-integration, hooks, cli
+* **Contexto:** Los agentes ignoraban el MCP nexo-palace por configuraciones con NEXO_PALACE_ROOT fijo, bug de salida prematura en cli.ts serve, friccion de carga Lazy y falta de reglas/hooks/herramientas de cierre en MCP
+* **Decisión:** Se implemento soporte nativo de MCP Roots (roots/list y roots/list_changed), fix de ciclo de vida en cli.ts serve, herramientas MCP memory_map y memory_drift, modulo agent-integration con comando init-agent para reglas multi-harness (.agents, Cursor, Claude, Copilot), plugin Antigravity con SessionStart hook y Git hooks seguros con map --best-effort
+* **Archivos relacionados:** src/server.ts, src/cli.ts, src/map.ts, src/agent-integration.ts, src/installer.ts, src/drift.ts
+* **Episodio:** `decision:2026-11-15T23-27-05-604Z`

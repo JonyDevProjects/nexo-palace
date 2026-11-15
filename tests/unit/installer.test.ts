@@ -169,6 +169,33 @@ describe("MCP client integration & auto-registration", () => {
     expect((globalConfig.mcpServers as Record<string, any>)["nexo-palace"]).toEqual(NEXO_PALACE_MCP_SERVER_CONFIG);
   });
 
+  it("registerAntigravity limpia NEXO_PALACE_ROOT fijo en configuración legacy si existe", () => {
+    const dir = makeTempDir();
+    const projectRoot = join(dir, "repo-with-agents");
+    mkdirSync(join(projectRoot, ".agents"), { recursive: true });
+
+    const legacyPath = join(dir, ".gemini", "antigravity", "mcp_config.json");
+    writeJsonFileSecure(legacyPath, {
+      mcpServers: {
+        "nexo-palace": {
+          command: "npx",
+          args: ["-y", "@ijonydev/nexo-palace", "serve"],
+          env: { NEXO_PALACE_ROOT: "/ruta/fija/incorrecta" },
+        },
+        otherServer: { command: "echo" },
+      },
+    });
+
+    const result = registerAntigravity(projectRoot, { customLegacyPath: legacyPath, skipCli: true });
+    expect(result.success).toBe(true);
+
+    const legacyParsed = readJsonFileSecure(legacyPath);
+    const servers = legacyParsed.mcpServers as Record<string, any>;
+    expect(servers["nexo-palace"]).toEqual(NEXO_PALACE_MCP_SERVER_CONFIG);
+    expect(servers["nexo-palace"].env).toBeUndefined();
+    expect(servers.otherServer).toEqual({ command: "echo" });
+  });
+
   it("registerVsCode registra en .vscode/mcp.json si la carpeta existe", () => {
     const dir = makeTempDir();
     const projectRoot = join(dir, "my-vscode-project");

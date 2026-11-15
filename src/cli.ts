@@ -3,13 +3,14 @@
  * Nexo-Palace — CLI.
  *
  * Uso:
- *   nexo-palace index [--provider litert|gemini|ollama|offline] [--model <modelo>]
+ *   nexo-palace index [--provider litert|gemini|ollama|offline] [--model <modelo>] [--best-effort]
  *   nexo-palace query "<texto>" [--scope doc|code|test|taste|requirement|all] [--limit N]
  *   nexo-palace trace "<ruta o símbolo>" [--depth N]
- *   nexo-palace drift [--base <ref>] [--dry-run]
+ *   nexo-palace drift [--base <ref>] [--dry-run] [--strict]
  *   nexo-palace decide --context <texto> --decision <texto> [--tags a,b] [--files x,y]
  *   nexo-palace stats
  *   nexo-palace serve
+ *   nexo-palace init-agent [--harness <all|antigravity|cursor|claude|copilot>] [--dry-run]
  *
  * Opciones globales (antes o después del subcomando):
  *   --root <dir>      Raíz del proyecto a indexar.
@@ -17,10 +18,9 @@
  *
  * El mismo motor se expone como servidor MCP en `server.ts`.
  */
-import { closeDb, indexProvider, indexStats, openDb, setMeta } from "./db.ts";
+import { closeDb, indexProvider, indexStats, openDb } from "./db.ts";
 import { getConfig, initProject, loadEnv, OFFLINE_EMBEDDING_DIM } from "./config.ts";
 import {
-  createEmbeddingProvider,
   describeProvider,
   OfflineEmbeddingProvider,
   providerFromId,
@@ -28,8 +28,7 @@ import {
 } from "./embedder.ts";
 import { detectDrift } from "./drift.ts";
 import { recordDecision } from "./episodes.ts";
-import { extractCode } from "./extract-code.ts";
-import { ingestDocuments } from "./ingest-docs.ts";
+import { runMap } from "./map.ts";
 import { search } from "./query.ts";
 import { traceEntity } from "./trace.ts";
 import { startServer } from "./server.ts";
@@ -90,15 +89,17 @@ function usage(): void {
       "Nexo-Palace — El Arquitecto del Sueño: memoria de proyecto para agentes",
       "",
       "Comandos:",
-      "  map | index [--provider <litert|gemini|ollama|offline>] [--model <modelo>]",
+      "  map | index [--provider <litert|gemini|ollama|offline>] [--model <modelo>] [--best-effort]",
       "                                                                       El Arquitecto cartografía el repositorio y teje el grafo",
       "  query <texto> [--scope <scope>] [--limit <n>] [--path <prefijo>]    Consulta híbrida",
       "  trace <entidad> [--depth <n>]                                      Traza el grafo de un archivo o símbolo",
-      "  drift [--base <ref>] [--dry-run]                                    Detecta deriva entre código y requisitos",
+      "  drift [--base <ref>] [--dry-run] [--strict]                         Detecta deriva entre código y requisitos",
       "  decide --context <texto> --decision <texto> [--tags a,b] [--files x,y]",
       "                                                                       Registra una decisión en la memoria",
       "  stats                                                               Estado del índice",
       "  serve                                                               Servidor MCP por stdio",
+      "  init-agent | init-rules [--harness <lista|all>] [--no-scripts] [--no-hooks] [--mcp] [--dry-run]",
+      "                                                                       Genera reglas de agente, scripts npm y Git hooks",
       "  setup                                                               Asistente de instalación y configuración",
       "",
       "Opciones globales:",
@@ -109,16 +110,49 @@ function usage(): void {
   );
 }
 
+/** Parsea `--harness` en una lista validada de harnesses. */
+async function parseHarnessFlag(
+  raw: string | boolean | undefined,
+): Promise<Array<"antigravity" | "cursor" | "claude" | "copilot"> | undefined> {
+  if (typeof raw !== "string" || !raw.trim()) return undefined;
+  const { HARNESS_IDS } = await import("./agent-integration.ts");
+  const aliases: Record<string, (typeof HARNESS_IDS)[number]> = {
+    agy: "antigravity",
+    gemini: "antigravity",
+    antigravity: "antigravity",
+    cursor: "cursor",
+    claude: "claude",
+    "claude-code": "claude",
+    copilot: "copilot",
+    vscode: "copilot",
+  };
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (parts.includes("all")) return [...HARNESS_IDS];
+  const resolved = parts.map((p) => {
+    const mapped = aliases[p];
+    if (!mapped) {
+      throw new Error(`Harness desconocido '${p}'. Opciones válidas: all, ${HARNESS_IDS.join(", ")}`);
+    }
+    return mapped;
+  });
+  return [...new Set(resolved)];
+}
+
 /** Ejecuta el comando solicitado. */
 async function main(): Promise<number> {
   const { positional, flags } = parseArgs(process.argv.slice(2));
   const command = positional[0];
+  const explicitRoot = typeof flags.root === "string" ? flags.root : undefined;
+  const explicitConfig = typeof flags.config === "string" ? flags.config : undefined;
 
   // La raíz del proyecto se resuelve antes que nada: de ella dependen el
   // `.env`, la base de datos y las rutas que se indexan.
   initProject({
-    root: typeof flags.root === "string" ? flags.root : undefined,
-    config: typeof flags.config === "string" ? flags.config : undefined,
+    root: explicitRoot,
+    config: explicitConfig,
   });
   loadEnv();
 
@@ -133,9 +167,61 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  if (command === "init-agent" || command === "init-rules") {
+    const { initAgentIntegration } = await import("./agent-integration.ts");
+    const harnesses = await parseHarnessFlag(flags.harness);
+    const root = getConfig().root;
+    const dryRun = flags["dry-run"] === true;
+
+    const report = initAgentIntegration(root, {
+      harnesses,
+      scripts: flags["no-scripts"] !== true,
+      gitHooks: flags["no-hooks"] !== true,
+      agentHooks: flags["no-agent-hooks"] !== true,
+      strictHooks: flags["strict-hooks"] === true,
+      force: flags.force === true,
+      dryRun,
+    });
+
+    if (flags.mcp === true && !dryRun) {
+      const { autoRegisterMcpClients, printMcpRegistrationReport } = await import("./installer.ts");
+      const mcpReport = autoRegisterMcpClients(root);
+      printMcpRegistrationReport(mcpReport);
+    }
+
+    process.stdout.write(
+      [
+        dryRun
+          ? `[nexo-palace] Simulación (dry-run) de integración para ${report.projectName} (${report.projectRoot}):`
+          : `✔ Integración de agentes configurada para ${report.projectName} (${report.projectRoot})`,
+        `Harnesses: ${report.harnesses.join(", ")}`,
+        `Comando base: ${report.palaceCommand}`,
+        "Cambios:",
+        ...report.changes.map(
+          (c) => `  - [${c.action}] ${c.path}${c.reason ? ` — ${c.reason}` : ""}`,
+        ),
+        "",
+      ].join("\n"),
+    );
+    return 0;
+  }
+
   if (command === "serve") {
-    await startServer();
-    // El servidor MCP vive hasta que el cliente lo cierre.
+    const server = await startServer({
+      root: explicitRoot,
+      config: explicitConfig,
+    });
+    // Mantener vivo el proceso hasta que stdin se cierre o el servidor MCP termine.
+    await new Promise<void>((resolve) => {
+      const done = (): void => resolve();
+      process.stdin.once("end", done);
+      process.stdin.once("close", done);
+      const prevOnClose = server.server.onclose;
+      server.server.onclose = () => {
+        prevOnClose?.();
+        done();
+      };
+    });
     return 0;
   }
 
@@ -144,62 +230,65 @@ async function main(): Promise<number> {
   switch (command) {
     case "map":
     case "index": {
-      // Si el índice ya tiene una capa vectorial, se reutiliza su proveedor:
-      // cambiar de proveedor en silencio descartaría los embeddings actuales.
-      const envProvider = process.env.PALACE_EMBED_PROVIDER;
-      const explicit = typeof flags.provider === "string" ? flags.provider : (envProvider || undefined);
-      const index = indexProvider(db);
-      const provider = explicit
-        ? await createEmbeddingProvider({
-            provider: explicit,
-            model: typeof flags.model === "string" ? flags.model : undefined,
-          })
-        : (providerFromId(index.id, index.dim) ??
-          (await createEmbeddingProvider({
-            model: typeof flags.model === "string" ? flags.model : undefined,
-          })));
+      const docBar = new ProgressBar(1, "Cartografiando documentos");
+      const codeBar = new ProgressBar(1, "Parseando AST y dependencias");
+      let docStarted = false;
+      let codeStarted = false;
 
-      process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Cartografiando documentos con ${describeProvider(provider)}...\n`);
-      const docBar = new ProgressBar(1, "Iniciando análisis documental");
-      const docs = await ingestDocuments(provider, {
+      const result = await runMap({
         db,
-        allowProviderSwitch: Boolean(explicit),
-        onProgress: (current, total, file) => {
+        provider: typeof flags.provider === "string" ? flags.provider : undefined,
+        model: typeof flags.model === "string" ? flags.model : undefined,
+        bestEffort: flags["best-effort"] === true,
+        onDocProgress: (current, _total, file) => {
+          if (!docStarted) {
+            docStarted = true;
+            process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Cartografiando documentos...\n`);
+          }
           docBar.update(current, file);
         },
-      });
-      docBar.finish(`Documentos cartografiados: ${docs.documents} (${docs.files} ficheros, ${docs.chunks} fragmentos)`);
-
-      process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Analizando código y tejiendo grafo de trazabilidad...\n`);
-      const codeBar = new ProgressBar(1, "Parseando AST y dependencias");
-      const code = await extractCode(provider, {
-        db,
-        allowProviderSwitch: Boolean(explicit),
-        onProgress: (current, total, file) => {
+        onCodeProgress: (current, _total, file) => {
+          if (!codeStarted) {
+            codeStarted = true;
+            process.stderr.write(`\n\x1b[1m\x1b[36m[arquitecto]\x1b[0m Analizando código y tejiendo grafo de trazabilidad...\n`);
+          }
           codeBar.update(current, file);
         },
       });
-      codeBar.finish(`Código analizado: ${code.files} ficheros, ${code.symbols} símbolos, ${code.tests} tests`);
 
-      setMeta(db, "indexed_at", new Date().toISOString());
+      if (result.skipped) {
+        process.stderr.write(`[nexo-palace] Cartografía omitida (--best-effort): ${result.reason}\n`);
+        return 0;
+      }
 
-      const stats = indexStats(db);
+      const docs = result.docs!;
+      const code = result.code!;
+      const stats = result.stats;
+      if (docStarted) {
+        docBar.finish(`Documentos cartografiados: ${docs.documents} (${docs.files} ficheros, ${docs.chunks} fragmentos)`);
+      }
+      if (codeStarted) {
+        codeBar.finish(`Código analizado: ${code.files} ficheros, ${code.symbols} símbolos, ${code.tests} tests`);
+      }
+
       process.stdout.write(
         "\n" +
-        [
-          `\x1b[1m\x1b[32m✔ Cartografía completada con éxito\x1b[0m`,
-          `Proyecto: ${getConfig().projectName} (${getConfig().root})`,
-          `Requisitos detectados: ${docs.requirements}`,
-          `Aristas del grafo: ${code.edges}`,
-          `Vectores en memoria: ${stats.vectors} (dim ${stats.dim}, proveedor ${stats.provider})`,
-          docs.skippedShort > 0
-            ? `Fragmentos sin embedding por ser breves: ${docs.skippedShort}`
-            : "",
-          docs.errors.length > 0 ? `Errores: ${docs.errors.length}` : "",
-          ...docs.errors.map((e) => `  - ${e}`),
-        ]
-          .filter(Boolean)
-          .join("\n") + "\n\n",
+          [
+            `\x1b[1m\x1b[32m✔ Cartografía completada con éxito\x1b[0m`,
+            `Proyecto: ${result.projectName} (${result.root})`,
+            `Proveedor: ${result.provider ? describeProvider(result.provider) : "n/a"}`,
+            `Requisitos detectados: ${docs.requirements}`,
+            `Aristas del grafo: ${code.edges}`,
+            `Vectores en memoria: ${stats.vectors} (dim ${stats.dim}, proveedor ${stats.provider})`,
+            docs.skippedShort > 0
+              ? `Fragmentos sin embedding por ser breves: ${docs.skippedShort}`
+              : "",
+            docs.errors.length > 0 ? `Errores: ${docs.errors.length}` : "",
+            ...docs.errors.map((e) => `  - ${e}`),
+          ]
+            .filter(Boolean)
+            .join("\n") +
+          "\n\n",
       );
       return 0;
     }
@@ -262,6 +351,9 @@ async function main(): Promise<number> {
         db,
       );
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      if (flags.strict === true && result.events.length > 0) {
+        return 1;
+      }
       return 0;
     }
 
