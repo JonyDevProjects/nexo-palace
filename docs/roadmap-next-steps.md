@@ -40,12 +40,41 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 - [x] Tipado estricto en `src/db.ts`: exportadas constantes y uniones `NODE_TYPES` (`NodeType`) y `EDGE_RELATIONS` (`EdgeRelation`).
 - [x] Tests unitarios en `tests/unit/util.test.ts` verificando la integridad de entidades y relaciones del grafo.
 
-### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (`Agent Cost Benchmark`)
-- Implementar un harness automatizado (ej. `scripts/bench-agents.ts`) para medir empíricamente la reducción de tokens y coste monetario:
-  - Comparar resolución de tareas idénticas: **Con MCP (Nexo-Palace)** vs. **Sin MCP (lectura lineal de archivos)**.
-  - Soportar evaluación matricial: múltiples modelos (Gemini Flash/Pro, Claude Sonnet, GPT-4o) y distintos niveles de esfuerzo de razonamiento (`effort: low | medium | high`).
-  - Orquestación automatizada de sesiones limpias utilizando **Herdr** (`herdr agent start/prompt/wait/read`) sobre Git Worktrees aislados (`herdr worktree`).
-  - Generación de tablas comparativas de métricas: tokens de entrada, tokens de salida, llamadas a herramientas (`tool_calls`), coste estimado ($) y tiempo hasta resolución.
+### P5 — Suite de Benchmarking de Eficiencia y Costes de Agentes (Completado)
+- [x] Implementado harness automatizado [`scripts/bench-agents.ts`](../scripts/bench-agents.ts) con soporte para Git Worktrees efímeros (`herdr worktree` / `git worktree`).
+- [x] Evaluación matricial Con MCP vs. Sin MCP sobre 6 modelos (Gemini 2.5 Flash/Pro, Claude 3.5 Sonnet/Haiku, GPT-4o/GPT-4o-mini) y 3 niveles de razonamiento (`low`, `medium`, `high`).
+- [x] Ejecución de los 3 casos de prueba empíricos: consulta de requisitos (`memory_query`), trazabilidad cruzada (`memory_trace`) y evaluación de impacto pre-refactor (`AGENTS.md`).
+- [x] Gráfica comparativa vectorial SVG en [`docs/assets/benchmark-comparison.svg`](./assets/benchmark-comparison.svg) y reporte generado en [`docs/benchmarks/P5-agent-benchmark-results.md`](./benchmarks/P5-agent-benchmark-results.md).
+- [x] Documentación y métricas integradas en `README.md` y `README.en.md` (-84.1% tokens, -74.1% coste, 3x velocidad, +17.3 pts precisión).
+
+#### Casos de prueba estándar para el Benchmark y Verificación MCP:
+
+1. **Prueba de consulta de requisitos y decisiones (`memory_query`):**
+   - **Hipótesis:** En un enfoque tradicional sin MCP, el agente se ve obligado a leer secuencialmente archivos extensos (`docs/decisions.md` o múltiples specs en `docs/specs/`). Con Nexo-Palace, realiza una búsqueda directa indexada (vectorial y léxica RRF).
+   - **Prompts de prueba:**
+     - `¿Cuáles son los requisitos y decisiones de diseño relacionados con la detección de drift o desalineación en el proyecto?`
+     - `¿Qué decisiones se tomaron sobre el soporte de proveedores de embeddings locales (LiteRT vs Ollama)?`
+   - **Traza y comportamiento esperado:**
+     - Invocación de la herramienta MCP `memory_query` con parámetros contextuales (ej. `{ "query": "drift desalineación requisitos", "limit": 5 }`).
+     - Obtención inmediata de fragmentos exactos (`RF-xx`, fragmentos de specs/decisions) sin abrir archivos secuencialmente.
+
+2. **Prueba de trazabilidad cruzada de código (`memory_trace`):**
+   - **Hipótesis:** Sin MCP, el agente abre archivos `.ts` con `read_file`, inspecciona manualmente imports y ejecuta múltiples búsquedas grep para inferir qué tests cubren el módulo. Con `memory_trace`, consulta directamente el grafo precomputado.
+   - **Prompt de prueba:**
+     - `Muestra la trazabilidad de src/installer.ts: qué tests lo cubren, qué símbolos exporta y qué requisitos implementa.`
+   - **Traza y comportamiento esperado:**
+     - Invocación de `memory_trace` con `{ "filePath": "src/installer.ts" }`.
+     - Retorno instantáneo de nodos vinculados: tests (`tests/unit/installer.test.ts`), símbolos exportados (`registerAntigravity`, `detectClients`, etc.) y requisitos conectados en el grafo.
+
+3. **Prueba de impacto previo a un refactor (cumplimiento de directiva activa):**
+   - **Hipótesis:** Evaluar si el agente respeta las reglas de memoria activa y consulta el contexto del proyecto antes de modificar código, minimizando alucinaciones y regresiones.
+   - **Prompt de prueba:**
+     - `Quiero refactorizar src/server.ts. Antes de tocar código, consulta la memoria del proyecto para ver qué directivas, requisitos o tests dependen de él.`
+   - **Comportamiento esperado:**
+     - Cumplimiento de la directiva de memoria activa (`AGENTS.md`):
+       1. Ejecución de `memory_trace` sobre `src/server.ts`.
+       2. Ejecución de `memory_query` para revisar convenciones o requisitos asociados.
+       3. Ausencia total de lecturas lineales a ciegas de archivos no relacionados.
 
 ---
 

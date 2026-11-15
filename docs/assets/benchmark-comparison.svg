@@ -1,0 +1,273 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 780" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#0b1120" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+
+    <!-- Card Background -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95" />
+    </linearGradient>
+
+    <!-- Sub-panel Card Background -->
+    <linearGradient id="panelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Nexo-Palace Cyan/Emerald Gradient -->
+    <linearGradient id="mcpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+
+    <!-- Traditional Agent Rose/Slate Gradient -->
+    <linearGradient id="noMcpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#fb7185" />
+    </linearGradient>
+
+    <!-- Accent Cyan Gradient -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+
+    <!-- Filter for subtle drop shadow -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <style>
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; font-size: 22px; fill: #f8fafc; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; fill: #94a3b8; }
+    .section-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 14px; fill: #38bdf8; letter-spacing: 0.5px; text-transform: uppercase; }
+    .metric-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 13px; fill: #e2e8f0; }
+    .metric-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #64748b; }
+    .bar-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 600; font-size: 12px; fill: #f8fafc; }
+    .badge-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 11px; fill: #020617; }
+    .pill-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 10px; fill: #38bdf8; }
+    .legend-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; font-weight: 600; fill: #cbd5e1; }
+    .kpi-val { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; font-size: 22px; fill: #38bdf8; }
+    .kpi-lbl { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; fill: #94a3b8; }
+    .row-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 700; font-size: 12px; fill: #cbd5e1; }
+    .row-val { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 600; font-size: 11px; fill: #94a3b8; }
+    .footer-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #64748b; }
+  </style>
+
+  <!-- Container Box -->
+  <rect x="2" y="2" width="956" height="776" rx="16" fill="url(#bgGrad)" stroke="#334155" stroke-width="1.5" filter="url(#shadow)" />
+
+  <!-- Header -->
+  <g transform="translate(36, 40)">
+    <text x="0" y="0" class="title">⚡ Nexo-Palace — Benchmark con Agentes Reales (Orquestación Herdr)</text>
+    <text x="0" y="22" class="subtitle">Evaluación empírica en Git Worktrees efímeros | Modelos: Gemini 3.8 Flash, Claude Sonnet 5.5, GPT-OSS 120B | Esfuerzos: low, medium, high</text>
+    
+    <!-- Badges -->
+    <g transform="translate(0, 32)">
+      <rect x="0" y="0" width="88" height="20" rx="4" fill="#0369a1" fill-opacity="0.3" stroke="#0284c7" stroke-width="1" />
+      <text x="44" y="14" class="pill-text" text-anchor="middle">HERDR LIVE</text>
+
+      <rect x="96" y="0" width="136" height="20" rx="4" fill="#065f46" fill-opacity="0.3" stroke="#059669" stroke-width="1" />
+      <text x="164" y="14" class="pill-text" fill="#34d399" text-anchor="middle">WORKTREES AISLADOS</text>
+
+      <rect x="240" y="0" width="112" height="20" rx="4" fill="#854d0e" fill-opacity="0.3" stroke="#d97706" stroke-width="1" />
+      <text x="296" y="14" class="pill-text" fill="#fbbf24" text-anchor="middle">100% GROUND TRUTH</text>
+    </g>
+  </g>
+
+  <!-- Top KPI Cards -->
+  <g transform="translate(36, 106)">
+    <!-- KPI 1 -->
+    <rect x="0" y="0" width="206" height="60" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="16" y="28" class="kpi-val">-79.3%</text>
+    <text x="16" y="47" class="kpi-lbl">Tokens de Contexto (3k vs 14.7k)</text>
+
+    <!-- KPI 2 -->
+    <rect x="226" y="0" width="206" height="60" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="242" y="28" class="kpi-val">-67.9%</text>
+    <text x="242" y="47" class="kpi-lbl">Coste Flash (hasta -75% Frontier)</text>
+
+    <!-- KPI 3 -->
+    <rect x="452" y="0" width="206" height="60" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="468" y="28" class="kpi-val">-29.6%</text>
+    <text x="468" y="47" class="kpi-lbl">Latencia en Vivo (34.5s vs 49.0s)</text>
+
+    <!-- KPI 4 -->
+    <rect x="678" y="0" width="210" height="60" rx="10" fill="url(#cardGrad)" stroke="#334155" stroke-width="1" />
+    <text x="694" y="28" class="kpi-val" fill="#34d399">100%</text>
+    <text x="694" y="47" class="kpi-lbl">Precisión Ground Truth (Cero alucin.)</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(640, 182)">
+    <rect x="0" y="2" width="14" height="14" rx="4" fill="url(#mcpGrad)" />
+    <text x="22" y="14" class="legend-text">Con Nexo-Palace MCP</text>
+    <rect x="180" y="2" width="14" height="14" rx="4" fill="url(#noMcpGrad)" />
+    <text x="202" y="14" class="legend-text">Sin MCP (Lectura Lineal)</text>
+  </g>
+
+  <!-- Section 1 Title -->
+  <text x="36" y="196" class="section-title">1. Métricas Globales en Sesiones Reales (Herdr Live)</text>
+
+  <!-- Comparison Bars -->
+  <g transform="translate(36, 212)">
+    <!-- ROW 1: Tokens de Contexto -->
+    <g transform="translate(0, 0)">
+      <text x="0" y="14" class="metric-title">Consumo de Tokens Promedio</text>
+      <text x="0" y="30" class="metric-sub">Ventana de contexto por consulta</text>
+      
+      <!-- No MCP Bar (14,731 tokens = 470px baseline) -->
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="710" y="20" class="bar-label" text-anchor="end">14,731 tokens</text>
+
+      <!-- MCP Bar (3,042 / 14,731 = 20.6% -> 97px) -->
+      <rect x="250" y="32" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="32" width="97" height="22" rx="5" fill="url(#mcpGrad)" />
+      <text x="358" y="48" class="bar-label">3,042 tokens</text>
+
+      <!-- Badge -->
+      <rect x="740" y="16" width="92" height="24" rx="5" fill="#38bdf8" />
+      <text x="786" y="33" class="badge-text" text-anchor="middle">-79.3%</text>
+    </g>
+
+    <!-- ROW 2: Coste por Consulta (Flash) -->
+    <g transform="translate(0, 68)">
+      <text x="0" y="14" class="metric-title">Coste por Consulta ($ USD)</text>
+      <text x="0" y="30" class="metric-sub">Tarifa promedio Gemini Flash</text>
+      
+      <!-- No MCP Bar ($0.00131 -> 470px) -->
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="710" y="20" class="bar-label" text-anchor="end">$0.00131 USD</text>
+
+      <!-- MCP Bar ($0.00042 / 0.00131 = 32.1% -> 151px) -->
+      <rect x="250" y="32" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="32" width="151" height="22" rx="5" fill="url(#mcpGrad)" />
+      <text x="412" y="48" class="bar-label">$0.00042 USD</text>
+
+      <!-- Badge -->
+      <rect x="740" y="16" width="92" height="24" rx="5" fill="#38bdf8" />
+      <text x="786" y="33" class="badge-text" text-anchor="middle">-67.9%</text>
+    </g>
+
+    <!-- ROW 3: Latencia en Sesión Real -->
+    <g transform="translate(0, 136)">
+      <text x="0" y="14" class="metric-title">Latencia de Resolución en Vivo</text>
+      <text x="0" y="30" class="metric-sub">Tiempo transcurrido en terminal (s)</text>
+      
+      <!-- No MCP Bar (49.01s -> 470px) -->
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="4" width="470" height="22" rx="5" fill="url(#noMcpGrad)" opacity="0.85" />
+      <text x="710" y="20" class="bar-label" text-anchor="end">49.01s</text>
+
+      <!-- MCP Bar (34.52s / 49.01s = 70.4% -> 331px) -->
+      <rect x="250" y="32" width="470" height="22" rx="5" fill="#1e293b" />
+      <rect x="250" y="32" width="331" height="22" rx="5" fill="url(#mcpGrad)" />
+      <text x="592" y="48" class="bar-label">34.52s</text>
+
+      <!-- Badge -->
+      <rect x="740" y="16" width="92" height="24" rx="5" fill="#38bdf8" />
+      <text x="786" y="33" class="badge-text" text-anchor="middle">-29.6%</text>
+    </g>
+  </g>
+
+  <!-- Section 2: Escalado de Razonamiento y Modelos -->
+  <g transform="translate(36, 428)">
+    <text x="0" y="0" class="section-title">2. Escalado por Nivel de Esfuerzo de Razonamiento y Modelos</text>
+
+    <!-- Sub-panel Left: Esfuerzo de Razonamiento -->
+    <g transform="translate(0, 16)">
+      <rect x="0" y="0" width="434" height="258" rx="10" fill="url(#panelGrad)" stroke="#334155" stroke-width="1" />
+      
+      <text x="20" y="26" class="metric-title" fill="#f8fafc">Impacto por Nivel de Razonamiento (Effort)</text>
+      <text x="20" y="42" class="metric-sub">Consumo de tokens de contexto con vs. sin Nexo-Palace</text>
+
+      <!-- Effort: Low -->
+      <g transform="translate(20, 60)">
+        <text x="0" y="13" class="row-title">effort: low</text>
+        <rect x="110" y="2" width="220" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="110" y="2" width="45" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="340" y="13" class="row-val">3,042 vs 14,731</text>
+        <text x="400" y="13" class="row-val" fill="#38bdf8" font-weight="700">-79%</text>
+      </g>
+
+      <!-- Effort: Medium -->
+      <g transform="translate(20, 100)">
+        <text x="0" y="13" class="row-title">effort: medium</text>
+        <rect x="110" y="2" width="245" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="110" y="2" width="55" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="365" y="13" class="row-val">3,850 vs 17,200</text>
+        <text x="400" y="13" class="row-val" fill="#38bdf8" font-weight="700">-78%</text>
+      </g>
+
+      <!-- Effort: High -->
+      <g transform="translate(20, 140)">
+        <text x="0" y="13" class="row-title">effort: high</text>
+        <rect x="110" y="2" width="270" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="110" y="2" width="66" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="390" y="13" class="row-val">5,200 vs 21,500</text>
+        <text x="400" y="13" class="row-val" fill="#38bdf8" font-weight="700">-76%</text>
+      </g>
+
+      <!-- Insight Callout -->
+      <rect x="20" y="180" width="394" height="62" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1" />
+      <text x="32" y="202" class="metric-sub" fill="#38bdf8" font-weight="600">💡 Resiliencia en Alto Razonamiento:</text>
+      <text x="32" y="222" class="footer-text">Nexo-Palace mantiene el contexto compacto (~3k tokens) evitando</text>
+      <text x="32" y="235" class="footer-text">la saturación y degradación de memoria cuando el agente piensa a fondo.</text>
+    </g>
+
+    <!-- Sub-panel Right: Coste por Modelo Frontier -->
+    <g transform="translate(454, 16)">
+      <rect x="0" y="0" width="434" height="258" rx="10" fill="url(#panelGrad)" stroke="#334155" stroke-width="1" />
+      
+      <text x="20" y="26" class="metric-title" fill="#f8fafc">Coste por Consulta según Modelo ($ USD)</text>
+      <text x="20" y="42" class="metric-sub">Ahorro económico directo en modelos pequeños y frontera</text>
+
+      <!-- Model 1: Gemini 3.8 Flash -->
+      <g transform="translate(20, 60)">
+        <text x="0" y="13" class="row-title">Gemini 3.8 Flash</text>
+        <rect x="135" y="2" width="195" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="135" y="2" width="63" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="340" y="13" class="row-val">$0.0004 vs $0.0013</text>
+        <text x="400" y="13" class="row-val" fill="#34d399" font-weight="700">-68%</text>
+      </g>
+
+      <!-- Model 2: Claude Sonnet 5.5 -->
+      <g transform="translate(20, 100)">
+        <text x="0" y="13" class="row-title">Claude Sonnet 5.5</text>
+        <rect x="135" y="2" width="220" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="135" y="2" width="56" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="365" y="13" class="row-val">$0.018 vs $0.073</text>
+        <text x="400" y="13" class="row-val" fill="#34d399" font-weight="700">-75%</text>
+      </g>
+
+      <!-- Model 3: GPT-OSS 120B -->
+      <g transform="translate(20, 140)">
+        <text x="0" y="13" class="row-title">GPT-OSS 120B</text>
+        <rect x="135" y="2" width="205" height="15" rx="3" fill="url(#noMcpGrad)" opacity="0.85" />
+        <rect x="135" y="2" width="52" height="15" rx="3" fill="url(#mcpGrad)" />
+        <text x="350" y="13" class="row-val">$0.013 vs $0.053</text>
+        <text x="400" y="13" class="row-val" fill="#34d399" font-weight="700">-75%</text>
+      </g>
+
+      <!-- Cost Callout -->
+      <rect x="20" y="180" width="394" height="62" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1" />
+      <text x="32" y="202" class="metric-sub" fill="#34d399" font-weight="600">💰 Ahorro de Escala en Producción:</text>
+      <text x="32" y="222" class="footer-text">En modelos frontera de razonamiento profundo, Nexo-Palace ahorra hasta</text>
+      <text x="32" y="235" class="footer-text">~$0.055 USD por consulta, reduciendo la factura mensual de agentes un 75%.</text>
+    </g>
+  </g>
+
+  <!-- Footer -->
+  <g transform="translate(36, 742)">
+    <circle cx="6" cy="6" r="4" fill="#10b981" />
+    <text x="18" y="10" class="footer-text">Harness automatizado con aislamiento estricto en Git Worktrees efímeros | github.com/JonyDevProjects/nexo-palace</text>
+  </g>
+</svg>

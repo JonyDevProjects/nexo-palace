@@ -1,3 +1,6 @@
+# Config de Agentes
+.agents/
+.commandcode/
 # Dependencias y herramientas
 node_modules/
 .archify-tool/

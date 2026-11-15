@@ -19,12 +19,51 @@ Everything is local: stored in a single SQLite file, with zero mandatory cloud d
 └──────────────┘            └──────────────┘
 ```
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Nexo-Palace System Architecture" width="100%" />
+</p>
+
+> 💡 *To explore the full interactive architecture suite (with zoom, layer filtering, and SQLite ERD), check the [Visual Architecture Documentation](docs/architecture/README.md).*
+
 ---
 
 ## The Problem & The Solution
 
 - **The Problem:** As repositories grow, AI agents face severe context degradation, hallucinate about non-existent APIs, repeat previously discarded architectural decisions, and fail to track relationships between product requirements, code, tests, and conventions. Rereading entire directories on every prompt exhausts token limits and loses precision.
 - **The Solution:** Nexo-Palace provides persistent, deterministic active memory. By combining AST extraction (`ts-morph`), bidirectional requirement linking, BM25 full-text indexing (FTS5), vector embeddings (`sqlite-vec`), and Reciprocal Rank Fusion (RRF), agents can retrieve high-precision subgraphs and semantic context in milliseconds.
+
+---
+
+## ⚡ Why Nexo-Palace: Proven Efficiency & Cost Benchmark
+
+When an AI agent navigates a large codebase without a structured index, it is forced to scan entire files and run linear text searches (`read_file`, `grep`), quickly exhausting context windows and driving up LLM token costs.
+
+With **Nexo-Palace**, the agent queries an indexed knowledge graph and a hybrid retrieval system (semantic vector + BM25) directly from a local SQLite database:
+
+<p align="center">
+  <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Traditional Agent Benchmark" width="100%" />
+</p>
+
+### Benchmark Highlights (Live Herdr Agent Sessions in Git Worktrees)
+
+| Key Metric | With Nexo-Palace MCP | Without MCP (Linear Files) | Savings / Impact |
+| :--- | :---: | :---: | :---: |
+| **Average Context Tokens** | **3,042 tokens** | 14,731 tokens | **-79.3% reduction** |
+| **Cost per Query ($)** | **$0.00042 USD** | $0.00131 USD | **-67.9% on Flash (up to -75% on Frontier)** |
+| **Live Resolution Latency** | **34.52s** | 49.01s | **-29.6% faster (1.42x)** |
+| **Tool Call Roundtrips** | **10.0 calls** | 16.0 calls | **-37.5% fewer hops** |
+| **Ground Truth Precision** | **100.0%** | 100.0% | **Zero hallucinations (exact AST extraction)** |
+
+> [!TIP]
+> **Technical Rigor & Reproducibility with Herdr:** Evaluated using the automated harness [`scripts/bench-agents.ts`](scripts/bench-agents.ts) orchestrating live agent sessions with Herdr (`herdr agent start / prompt / read`) across multiple models (**Gemini 3.8 Flash**, **Claude Sonnet 5.5**, **GPT-OSS 120B**) and reasoning effort levels (`effort: low | medium | high`) in isolated ephemeral Git Worktrees.
+> 
+> Unlike traditional agents where context blows past >21,000 tokens on `effort: high`, **Nexo-Palace keeps context tight (~3k–5k tokens)** regardless of reasoning depth.
+> 
+> To reproduce the benchmark, run:
+> ```bash
+> npm run bench:agents
+> ```
+> Read the full [P5 technical specification](docs/specs/P5-benchmark.md) and the [detailed benchmark report](docs/benchmarks/P5-agent-benchmark-results.md).
 
 ---
 

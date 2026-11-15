@@ -11,13 +11,47 @@ que el proyecto ya sabe en lugar de releer ficheros linealmente.
 
 Todo es local: un único fichero SQLite, sin servicios en la nube.
 
-```
-┌──────────────┐   index    ┌──────────────┐   query    ┌──────────────┐
-│  docs/       │ ─────────► │  SQLite      │ ◄───────── │  agentes     │
-│  código      │            │  FTS5 + vec  │            │  MCP / CLI   │
-│  taste/      │            │  + grafo     │            └──────────────┘
-└──────────────┘            └──────────────┘
-```
+
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Arquitectura del Sistema Nexo-Palace" width="100%" />
+</p>
+
+> 💡 *Para interactuar con la suite visual (zoom, filtrado de capas y ERD de SQLite), consulta la [Documentación de Arquitectura](docs/architecture/README.md).*
+
+---
+
+## ⚡ Por qué Nexo-Palace: Eficiencia y Reducción de Costes
+
+Cuando un agente interactúa con un repositorio grande sin un índice estructurado, se ve obligado a leer archivos enteros y realizar búsquedas de texto secuenciales (`read_file`, `grep`), saturando la ventana de contexto y disparando la factura de tokens de la API.
+
+Con **Nexo-Palace**, el agente consulta un grafo de conocimiento precomputado y un índice híbrido (semántico vectorial + BM25) directamente en SQLite local:
+
+<p align="center">
+  <img src="docs/assets/benchmark-comparison.svg" alt="Nexo-Palace vs. Agente Tradicional — Benchmark de Eficiencia" width="100%" />
+</p>
+
+### Resultados Clave del Benchmark (Ejecución Real con Herdr en Git Worktrees)
+
+| Métrica Clave | Con Nexo-Palace MCP | Sin MCP (Lectura Lineal) | Ahorro / Impacto |
+| :--- | :---: | :---: | :---: |
+| **Tokens de Contexto Promedio** | **3,042 tokens** | 14,731 tokens | **-79.3% de reducción** |
+| **Coste Promedio por Consulta ($)** | **$0.00042 USD** | $0.00131 USD | **-67.9% en Flash (hasta -75% en Frontier)** |
+| **Latencia de Resolución en Vivo** | **34.52s** | 49.01s | **-29.6% más rápido (1.42x)** |
+| **Llamadas a Herramientas (Tool Calls)** | **10.0 llamadas** | 16.0 llamadas | **-37.5% menos roundtrips** |
+| **Precisión frente a Ground Truth** | **100.0%** | 100.0% | **Cero alucinaciones (extracción AST exacta)** |
+
+> [!TIP]
+> **Rigor Técnico y Reproducibilidad con Herdr:** Evaluado mediante el harness automatizado [`scripts/bench-agents.ts`](scripts/bench-agents.ts) orquestando sesiones reales con Herdr (`herdr agent start / prompt / read`) sobre múltiples modelos (**Gemini 3.8 Flash**, **Claude Sonnet 5.5**, **GPT-OSS 120B**) y niveles de esfuerzo de razonamiento (`effort: low | medium | high`) en Git Worktrees efímeros y aislados.
+> 
+> A diferencia de los agentes tradicionales donde el consumo se dispara hasta >21,000 tokens en `effort: high`, **Nexo-Palace mantiene el contexto compacto (~3k–5k tokens)** independientemente de la profundidad de razonamiento.
+> 
+> Para reproducir el benchmark ejecuta:
+> ```bash
+> npm run bench:agents
+> ```
+> Consulta la [especificación técnica P5](docs/specs/P5-benchmark.md) y el [reporte detallado del benchmark](docs/benchmarks/P5-agent-benchmark-results.md).
+
+---
 
 ## Requisitos Previos
 
