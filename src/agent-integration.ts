@@ -444,7 +444,7 @@ export function initAgentIntegration(
               {
                 name: "nexo-palace",
                 description: `Memoria activa de proyecto e índice híbrido para ${projectName}`,
-                version: "0.1.3",
+                version: "0.1.4",
               },
               null,
               2,
