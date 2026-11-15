@@ -42,20 +42,22 @@ Declara el paquete como plugin habilitado por defecto en este proyecto:
 ```
 
 ### B. Configuración MCP (`.agents/plugins/nexo-palace/mcp_config.json`)
-Ejecuta el servidor MCP directamente desde el código TypeScript sin pasos de compilación previos (aprovechando Node `>= 22.6.0`):
+Ejecuta el servidor MCP de forma universal (mediante npx para usuarios finales o binario local):
 ```json
 {
   "mcpServers": {
     "nexo-palace": {
-      "command": "node",
+      "command": "npx",
       "args": [
-        "--experimental-strip-types",
-        "src/server.ts"
+        "-y",
+        "@ijonydev/nexo-palace",
+        "serve"
       ]
     }
   }
 }
 ```
+*(Durante el desarrollo interno del motor se puede invocar directamente con `"command": "node"`, `"args": ["--experimental-strip-types", "src/server.ts"]`).*
 
 ### C. Directivas de Memoria Activa (`.agents/plugins/nexo-palace/rules/AGENTS.md`)
 Regla inyectada en el prompt del sistema del agente para que consulte el índice antes de escribir código:

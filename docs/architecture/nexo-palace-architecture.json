@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nexo-Palace — Arquitectura Global del Sistema",
+    "subtitle": "Memoria de proyecto para agentes: índice híbrido, trazabilidad y servidor MCP",
+    "output": "docs/architecture/nexo-palace-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "claude", "type": "external", "label": "Claude Desktop", "sublabel": "mcpServers stdio", "pos": [40, 80], "size": [160, 60] },
+    { "id": "cursor", "type": "external", "label": "Cursor IDE", "sublabel": ".cursor/mcp.json", "pos": [40, 180], "size": [160, 60] },
+    { "id": "antigravity", "type": "external", "label": "Google Antigravity", "sublabel": "agy mcp add", "pos": [40, 280], "size": [160, 60] },
+    { "id": "dev_cli", "type": "external", "label": "Developer / CLI", "sublabel": "nxpl / npx nexo-palace", "pos": [40, 420], "size": [160, 60] },
+
+    { "id": "mcp_server", "type": "backend", "label": "Servidor MCP", "sublabel": "src/server.ts (stdio)", "pos": [280, 180], "size": [170, 70], "tag": "4 tools expuestas" },
+    { "id": "cli_runner", "type": "backend", "label": "CLI & Asistente", "sublabel": "src/cli.ts & installer.ts", "pos": [280, 415], "size": [170, 70], "tag": "setup / map / query" },
+
+    { "id": "query_engine", "type": "backend", "label": "Motor de Consulta Híbrida", "sublabel": "src/query.ts (RRF)", "pos": [530, 130], "size": [180, 70], "tag": "BM25 + k-NN Fusion" },
+    { "id": "trace_engine", "type": "backend", "label": "Extractor de Trazabilidad", "sublabel": "src/extract-code.ts (AST)", "pos": [530, 280], "size": [180, 70], "tag": "ts-morph / Code Graph" },
+    { "id": "ingest_engine", "type": "backend", "label": "Ingesta Documental", "sublabel": "src/ingest-docs.ts", "pos": [530, 415], "size": [180, 70], "tag": "Markdown Header Chunks" },
+
+    { "id": "sqlite_fts", "type": "database", "label": "chunks_fts (FTS5)", "sublabel": "Índice Léxico BM25", "pos": [800, 100], "size": [170, 65], "tag": "Zero-Downtime Fallback" },
+    { "id": "sqlite_vec", "type": "database", "label": "chunks_vec (vec0)", "sublabel": "sqlite-vec (k-NN)", "pos": [800, 210], "size": [170, 65], "tag": "Float Embeddings" },
+    { "id": "sqlite_graph", "type": "database", "label": "nodes & edges", "sublabel": "Grafo Relacional", "pos": [800, 320], "size": [170, 65], "tag": "Requisitos, Tests, Código" },
+    { "id": "sqlite_episodes", "type": "database", "label": "episodes & meta", "sublabel": "Memoria Decisional", "pos": [800, 430], "size": [170, 65], "tag": "ADRs & Timestamps" },
+
+    { "id": "gemini_api", "type": "cloud", "label": "Google AI Studio", "sublabel": "gemini-embedding-001 (768d)", "pos": [1050, 140], "size": [180, 65], "tag": "Nube / Semántica Alta" },
+    { "id": "local_llm", "type": "backend", "label": "LiteRT / Ollama", "sublabel": "Local Embeddings (11434/5)", "pos": [1050, 250], "size": [180, 65], "tag": "100% Privado" },
+    { "id": "offline_embed", "type": "backend", "label": "Offline Provider", "sublabel": "TF-IDF / Hash (384d)", "pos": [1050, 360], "size": [180, 65], "tag": "Sin Red ni Servicios" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Clientes MCP & Entorno de Desarrollo", "wraps": ["claude", "cursor", "antigravity", "dev_cli"] },
+    { "kind": "region", "label": "Nexo-Palace Core (Node.js 22+ Type-Stripping)", "wraps": ["mcp_server", "cli_runner", "query_engine", "trace_engine", "ingest_engine"] },
+    { "kind": "region", "label": "Base de Datos Unificada (.nexo-palace/memory.sqlite3)", "wraps": ["sqlite_fts", "sqlite_vec", "sqlite_graph", "sqlite_episodes"] },
+    { "kind": "region", "label": "Proveedores de Embeddings Intercambiables", "wraps": ["gemini_api", "local_llm", "offline_embed"] }
+  ],
+  "connections": [
+    { "id": "claude-to-mcp", "from": "claude", "to": "mcp_server", "label": "JSON-RPC (stdio)" },
+    { "id": "cursor-to-mcp", "from": "cursor", "to": "mcp_server", "label": "JSON-RPC (stdio)" },
+    { "id": "agy-to-mcp", "from": "antigravity", "to": "mcp_server", "label": "JSON-RPC (stdio)", "variant": "emphasis" },
+    { "id": "cli-to-runner", "from": "dev_cli", "to": "cli_runner", "label": "comandos CLI" },
+
+    { "id": "mcp-to-query", "from": "mcp_server", "to": "query_engine", "label": "memory_query", "variant": "emphasis" },
+    { "id": "mcp-to-trace", "from": "mcp_server", "to": "trace_engine", "label": "memory_trace" },
+    { "id": "cli-to-ingest", "from": "cli_runner", "to": "ingest_engine", "label": "nxpl map" },
+    { "id": "cli-to-query", "from": "cli_runner", "to": "query_engine", "label": "nxpl query" },
+
+    { "id": "query-to-fts", "from": "query_engine", "to": "sqlite_fts", "label": "BM25 MATCH", "variant": "emphasis" },
+    { "id": "query-to-vec", "from": "query_engine", "to": "sqlite_vec", "label": "k-NN MATCH", "variant": "emphasis" },
+    { "id": "trace-to-graph", "from": "trace_engine", "to": "sqlite_graph", "label": "BFS / Subgrafo" },
+    { "id": "ingest-to-db", "from": "ingest_engine", "to": "sqlite_fts", "label": "Indexa Chunks" },
+    { "id": "ingest-to-episodes", "from": "ingest_engine", "to": "sqlite_episodes", "label": "Persiste Decisiones" },
+
+    { "id": "vec-to-gemini", "from": "sqlite_vec", "to": "gemini_api", "label": "REST API", "variant": "dashed" },
+    { "id": "vec-to-local", "from": "sqlite_vec", "to": "local_llm", "label": "HTTP Local", "variant": "dashed" },
+    { "id": "vec-to-offline", "from": "sqlite_vec", "to": "offline_embed", "label": "Cálculo local", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Local-First & Cero Dependencias Externas",
+      "items": [
+        "Todo el estado vive en un único fichero .nexo-palace/memory.sqlite3",
+        "Sin clústeres externos: FTS5 léxico y sqlite-vec vectorial integrados en SQLite",
+        "Modo Offline 100% funcional sin conexión a internet ni consumo de GPU"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Búsqueda Híbrida RRF (Reciprocal Rank Fusion)",
+      "items": [
+        "Canal Léxico (BM25) y Canal Vectorial (k-NN) operan en paralelo",
+        "Tolerancia total a fallos: si el proveedor vectorial falla, el canal léxico responde como fallback transparente",
+        "Coincidencia exacta de identificadores de requisitos (RF-xx, US-xx) y símbolos de código"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Integración MCP Zero-Config",
+      "items": [
+        "Compatible con Claude Desktop, Cursor, Google Antigravity y VS Code",
+        "Distribución universal mediante 'npx -y @ijonydev/nexo-palace serve' o 'nxpl serve'",
+        "Asistente interactivo 'setup' que autodetecta y autoconfigura clientes instalados"
+      ]
+    }
+  ]
+}

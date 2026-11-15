@@ -8,6 +8,8 @@
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { platform, homedir } from "node:os";
+import { spawnSync } from "node:child_process";
 
 /** Lectura segura de JSON (no pisa el archivo si es inválido) */
 export function readJsonFileSecure(filePath: string): Record<string, unknown> {
@@ -32,7 +34,6 @@ export function writeJsonFileSecure(filePath: string, data: Record<string, unkno
   writeFileSync(tmpPath, JSON.stringify(data, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
   renameSync(tmpPath, filePath);
 }
-import { platform } from "node:os";
 import { confirmPrompt, ProgressBar, selectMenu } from "./tui.ts";
 import { openDb } from "./db.ts";
 import { createEmbeddingProvider, describeProvider } from "./embedder.ts";
@@ -221,6 +222,335 @@ function configureProject(selected: string): void {
   console.log("");
 }
 
+/** Configuración universal del servidor MCP para clientes (Claude Desktop, Cursor, Antigravity, etc.) */
+export const NEXO_PALACE_MCP_SERVER_CONFIG = {
+  command: "npx",
+  args: ["-y", "@ijonydev/nexo-palace", "serve"],
+};
+
+/** Inyecta o actualiza la configuración de un servidor MCP en un archivo JSON de forma segura y atómica */
+export function injectMcpServerConfig(
+  targetFile: string,
+  serverName = "nexo-palace",
+  serverConfig: Record<string, unknown> = NEXO_PALACE_MCP_SERVER_CONFIG,
+): void {
+  const current = readJsonFileSecure(targetFile);
+  const mcpServers = (current.mcpServers as Record<string, unknown>) || {};
+  mcpServers[serverName] = serverConfig;
+  current.mcpServers = mcpServers;
+  writeJsonFileSecure(targetFile, current);
+}
+
+/** Comprueba si un comando ejecutable está disponible en el PATH del sistema */
+export function isCommandAvailable(cmd: string): boolean {
+  try {
+    const lookup = PLATFORM === "win32" ? "where" : "which";
+    const res = spawnSync(lookup, [cmd], { stdio: "ignore" });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Devuelve la ruta por defecto del archivo de configuración de Claude Desktop según el SO */
+export function getClaudeConfigPath(): string {
+  switch (PLATFORM) {
+    case "darwin":
+      return join(homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json");
+    case "win32":
+      return process.env.APPDATA
+        ? join(process.env.APPDATA, "Claude", "claude_desktop_config.json")
+        : join(homedir(), "AppData", "Roaming", "Claude", "claude_desktop_config.json");
+    default:
+      return join(homedir(), ".config", "Claude", "claude_desktop_config.json");
+  }
+}
+
+/** Comprueba si Claude Desktop está instalado en el sistema */
+export function isClaudeDesktopDetected(customPath?: string): boolean {
+  const filePath = customPath ?? getClaudeConfigPath();
+  return existsSync(filePath) || existsSync(dirname(filePath));
+}
+
+/** Registra Nexo-Palace en Claude Desktop */
+export function registerClaudeDesktop(customPath?: string): { success: boolean; path: string; error?: string } {
+  const filePath = customPath ?? getClaudeConfigPath();
+  try {
+    injectMcpServerConfig(filePath);
+    return { success: true, path: filePath };
+  } catch (err) {
+    return { success: false, path: filePath, error: (err as Error).message };
+  }
+}
+
+/** Devuelve la ruta global de configuración MCP para Cursor */
+export function getCursorGlobalConfigPath(): string {
+  return join(homedir(), ".cursor", "mcp.json");
+}
+
+/** Devuelve la ruta de configuración MCP a nivel de proyecto para Cursor */
+export function getCursorProjectConfigPath(projectRoot: string): string {
+  return join(projectRoot, ".cursor", "mcp.json");
+}
+
+/** Comprueba si Cursor está presente (global, en workspace o comando CLI) */
+export function isCursorDetected(projectRoot = PROJECT_ROOT, customGlobalPath?: string): boolean {
+  const globalPath = customGlobalPath ?? getCursorGlobalConfigPath();
+  return (
+    existsSync(globalPath) ||
+    existsSync(dirname(globalPath)) ||
+    existsSync(join(projectRoot, ".cursor")) ||
+    isCommandAvailable("cursor")
+  );
+}
+
+/** Registra Nexo-Palace en Cursor (a nivel de proyecto si existe .cursor, y a nivel global) */
+export function registerCursor(
+  projectRoot = PROJECT_ROOT,
+  customGlobalPath?: string,
+): { success: boolean; paths: string[]; error?: string } {
+  const registeredPaths: string[] = [];
+  try {
+    const projDir = join(projectRoot, ".cursor");
+    if (existsSync(projDir)) {
+      const projPath = getCursorProjectConfigPath(projectRoot);
+      injectMcpServerConfig(projPath);
+      registeredPaths.push(projPath);
+    }
+
+    const globalPath = customGlobalPath ?? getCursorGlobalConfigPath();
+    const globalDir = dirname(globalPath);
+    if (existsSync(globalDir) || registeredPaths.length === 0) {
+      injectMcpServerConfig(globalPath);
+      registeredPaths.push(globalPath);
+    }
+
+    return { success: true, paths: registeredPaths };
+  } catch (err) {
+    return { success: false, paths: registeredPaths, error: (err as Error).message };
+  }
+}
+
+/** Devuelve la ruta global de configuración MCP para Google Antigravity */
+export function getAntigravityGlobalConfigPath(): string {
+  return join(homedir(), ".gemini", "config", "mcp_config.json");
+}
+
+/** Devuelve la ruta del plugin de workspace para Antigravity */
+export function getAntigravityPluginConfigPath(projectRoot: string): string {
+  return join(projectRoot, ".agents", "plugins", "nexo-palace", "mcp_config.json");
+}
+
+/** Comprueba si Google Antigravity o el plugin de agentes está presente */
+export function isAntigravityDetected(projectRoot = PROJECT_ROOT, customGlobalPath?: string): boolean {
+  const globalPath = customGlobalPath ?? getAntigravityGlobalConfigPath();
+  return (
+    isCommandAvailable("agy") ||
+    existsSync(globalPath) ||
+    existsSync(dirname(globalPath)) ||
+    existsSync(join(homedir(), ".gemini")) ||
+    existsSync(join(projectRoot, ".agents"))
+  );
+}
+
+/** Registra Nexo-Palace en Google Antigravity (vía CLI agy, plugin de workspace o mcp_config.json) */
+export function registerAntigravity(
+  projectRoot = PROJECT_ROOT,
+  options?: { customGlobalPath?: string; skipCli?: boolean },
+): { success: boolean; method: string; path?: string; error?: string } {
+  // 1. Si agy CLI está disponible en el PATH y no se solicita omitir, registrar con agy mcp add
+  if (!options?.skipCli && isCommandAvailable("agy")) {
+    try {
+      const res = spawnSync(
+        "agy",
+        ["mcp", "add", "nexo-palace", "npx", "--arg=-y", "--arg=@ijonydev/nexo-palace", "--arg=serve"],
+        { stdio: "pipe" },
+      );
+      if (res.status === 0) {
+        // Si además existe .agents en el proyecto, sincronizar también el plugin
+        if (existsSync(join(projectRoot, ".agents"))) {
+          try {
+            injectMcpServerConfig(getAntigravityPluginConfigPath(projectRoot));
+          } catch {
+            /* no bloqueante */
+          }
+        }
+        return { success: true, method: "cli" };
+      }
+    } catch {
+      // Continuar con fallback por archivo
+    }
+  }
+
+  // 2. Si existe carpeta .agents en el proyecto
+  const agentsDir = join(projectRoot, ".agents");
+  if (existsSync(agentsDir)) {
+    try {
+      const pluginMcpPath = getAntigravityPluginConfigPath(projectRoot);
+      injectMcpServerConfig(pluginMcpPath);
+      return { success: true, method: "workspace-plugin", path: pluginMcpPath };
+    } catch (err) {
+      return { success: false, method: "workspace-plugin", error: (err as Error).message };
+    }
+  }
+
+  // 3. Fallback a ~/.gemini/config/mcp_config.json
+  const globalPath = options?.customGlobalPath ?? getAntigravityGlobalConfigPath();
+  const globalDir = dirname(globalPath);
+  if (existsSync(globalDir) || existsSync(join(homedir(), ".gemini"))) {
+    try {
+      injectMcpServerConfig(globalPath);
+      return { success: true, method: "global-config", path: globalPath };
+    } catch (err) {
+      return { success: false, method: "global-config", path: globalPath, error: (err as Error).message };
+    }
+  }
+
+  return { success: false, method: "none", error: "Google Antigravity no detectado" };
+}
+
+/** Devuelve la ruta de configuración MCP a nivel de proyecto para VS Code */
+export function getVsCodeProjectConfigPath(projectRoot: string): string {
+  return join(projectRoot, ".vscode", "mcp.json");
+}
+
+/** Comprueba si VS Code está presente en el proyecto */
+export function isVsCodeDetected(projectRoot = PROJECT_ROOT): boolean {
+  return existsSync(join(projectRoot, ".vscode")) || isCommandAvailable("code");
+}
+
+/** Registra Nexo-Palace en VS Code si existe la carpeta .vscode en el proyecto */
+export function registerVsCode(projectRoot = PROJECT_ROOT): { success: boolean; path?: string; error?: string } {
+  const vscodeDir = join(projectRoot, ".vscode");
+  if (!existsSync(vscodeDir)) {
+    return { success: false, error: ".vscode no detectado en el proyecto" };
+  }
+  const targetPath = getVsCodeProjectConfigPath(projectRoot);
+  try {
+    injectMcpServerConfig(targetPath);
+    return { success: true, path: targetPath };
+  } catch (err) {
+    return { success: false, path: targetPath, error: (err as Error).message };
+  }
+}
+
+export interface McpRegistrationEntry {
+  client: string;
+  detected: boolean;
+  registered: boolean;
+  details: string;
+}
+
+/** Detecta y auto-registra Nexo-Palace en todos los clientes MCP disponibles */
+export function autoRegisterMcpClients(projectRoot = PROJECT_ROOT): McpRegistrationEntry[] {
+  const results: McpRegistrationEntry[] = [];
+
+  // Claude Desktop
+  const claudeDetected = isClaudeDesktopDetected();
+  if (claudeDetected) {
+    const reg = registerClaudeDesktop();
+    results.push({
+      client: "Claude Desktop",
+      detected: true,
+      registered: reg.success,
+      details: reg.success ? `Configurado en ${reg.path}` : `Error: ${reg.error}`,
+    });
+  } else {
+    results.push({
+      client: "Claude Desktop",
+      detected: false,
+      registered: false,
+      details: "No detectado en el sistema",
+    });
+  }
+
+  // Cursor
+  const cursorDetected = isCursorDetected(projectRoot);
+  if (cursorDetected) {
+    const reg = registerCursor(projectRoot);
+    results.push({
+      client: "Cursor",
+      detected: true,
+      registered: reg.success,
+      details: reg.success ? `Configurado en ${reg.paths.join(", ")}` : `Error: ${reg.error}`,
+    });
+  } else {
+    results.push({
+      client: "Cursor",
+      detected: false,
+      registered: false,
+      details: "No detectado en el sistema",
+    });
+  }
+
+  // Google Antigravity
+  const agyDetected = isAntigravityDetected(projectRoot);
+  if (agyDetected) {
+    const reg = registerAntigravity(projectRoot);
+    results.push({
+      client: "Google Antigravity",
+      detected: true,
+      registered: reg.success,
+      details: reg.success
+        ? reg.method === "cli"
+          ? "Registrado mediante 'agy mcp add'"
+          : `Configurado en ${reg.path ?? "configuración de Antigravity"}`
+        : `Error: ${reg.error}`,
+    });
+  } else {
+    results.push({
+      client: "Google Antigravity",
+      detected: false,
+      registered: false,
+      details: "No detectado en el sistema",
+    });
+  }
+
+  // VS Code (solo si tiene carpeta .vscode en el proyecto)
+  if (existsSync(join(projectRoot, ".vscode"))) {
+    const reg = registerVsCode(projectRoot);
+    results.push({
+      client: "VS Code",
+      detected: true,
+      registered: reg.success,
+      details: reg.success ? `Configurado en ${reg.path}` : `Error: ${reg.error}`,
+    });
+  }
+
+  return results;
+}
+
+/** Muestra por pantalla el resultado de la integración MCP */
+export function printMcpRegistrationReport(entries: McpRegistrationEntry[]): void {
+  const registered = entries.filter((e) => e.registered);
+  console.log("\n🔌 Resumen de integración MCP:");
+
+  if (registered.length > 0) {
+    for (const r of registered) {
+      console.log(`   \x1b[32m✔\x1b[0m ${r.client}: ${r.details}`);
+    }
+  } else {
+    console.log("   \x1b[33mℹ\x1b[0m No se detectaron clientes MCP instalados automáticamente.");
+  }
+
+  console.log("\n   Configuración universal recomendada para cualquier cliente MCP:");
+  console.log(
+    JSON.stringify(
+      {
+        mcpServers: {
+          "nexo-palace": NEXO_PALACE_MCP_SERVER_CONFIG,
+        },
+      },
+      null,
+      2,
+    )
+      .split("\n")
+      .map((line) => `   ${line}`)
+      .join("\n"),
+  );
+  console.log("");
+}
+
 export async function main(): Promise<void> {
   try {
     const selected = await showMenu();
@@ -266,6 +596,20 @@ export async function main(): Promise<void> {
       console.log(`  Vectores en memoria: ${stats.vectors} (dim ${stats.dim}, proveedor ${stats.provider})\n`);
     } else {
       console.log("\nPuedes cartografiar tu proyecto en cualquier momento ejecutando:\n  \x1b[36mnxpl map\x1b[0m (o npx nexo-palace map)\n");
+    }
+
+    const shouldRegisterMcp = await confirmPrompt(
+      "¿Deseas registrar automáticamente Nexo-Palace como servidor MCP en tus clientes instalados (Claude Desktop, Cursor, Antigravity)?",
+      true,
+    );
+    if (shouldRegisterMcp) {
+      console.log("\n🔌 Registrando Nexo-Palace en clientes MCP...");
+      const report = autoRegisterMcpClients(getConfig().root || PROJECT_ROOT);
+      printMcpRegistrationReport(report);
+    } else {
+      console.log(
+        "\nPuedes configurar tu cliente MCP manualmente añadiendo el comando:\n  \x1b[36mnpx -y @ijonydev/nexo-palace serve\x1b[0m\n",
+      );
     }
   } catch (err) {
     // Si el usuario cancela (Ctrl+C) o hay error, no romper la instalación
