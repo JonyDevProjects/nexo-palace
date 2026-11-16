@@ -190,7 +190,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
   const isEnabled = (name: string): boolean => enabled.has(name);
 
   const server = new McpServer(
-    { name: "nexo-palace", version: "0.1.4" },
+    { name: "nexo-palace", version: "0.2.0" },
     {
       capabilities: { tools: {} },
       instructions:

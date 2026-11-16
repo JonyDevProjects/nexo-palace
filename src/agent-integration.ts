@@ -27,7 +27,7 @@ function readPackageVersion(): string {
   } catch {
     /* fallback */
   }
-  return "0.1.4";
+  return "0.2.0";
 }
 
 export const HARNESS_IDS = ["antigravity", "cursor", "claude", "copilot"] as const;
