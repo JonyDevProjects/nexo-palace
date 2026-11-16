@@ -186,4 +186,83 @@ describe("MCP server dynamic roots, map & drift safeguards", () => {
       process.chdir(prevCwd);
     }
   });
+
+  it("expone y ejecuta la herramienta MCP memory_path", async () => {
+    delete process.env.NEXO_PALACE_ROOT;
+    delete process.env.NEXO_PALACE_CONFIG;
+
+    const projectDir = makeTempDir("proj-path-");
+    writeFileSync(
+      join(projectDir, "nexo-palace.config.json"),
+      JSON.stringify({ projectName: "path-test-proj" }),
+      "utf8",
+    );
+
+    initProject({ root: projectDir });
+    const db = openDb();
+    upsertNode(db, {
+      id: "code:src/entry.ts",
+      type: "code",
+      path: "src/entry.ts",
+      name: "entry.ts",
+    });
+    upsertNode(db, {
+      id: "code:src/service.ts",
+      type: "code",
+      path: "src/service.ts",
+      name: "service.ts",
+    });
+    upsertNode(db, {
+      id: "req:RF-99",
+      type: "requirement",
+      path: "docs/rf.md",
+      name: "RF-99",
+    });
+    upsertEdge(db, {
+      sourceId: "code:src/entry.ts",
+      targetId: "code:src/service.ts",
+      relation: "depends_on",
+      meta: { via: "import" },
+    });
+    upsertEdge(db, {
+      sourceId: "code:src/service.ts",
+      targetId: "req:RF-99",
+      relation: "implements",
+      meta: { via: "annotation" },
+    });
+
+    const server = await startServer({ root: projectDir, connectTransport: false });
+    const client = new Client(
+      { name: "test-path-client", version: "0.1.0" },
+      { capabilities: {} },
+    );
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    const tools = await client.listTools();
+    const toolNames = tools.tools.map((t) => t.name);
+    expect(toolNames).toContain("memory_path");
+
+    const pathRes = await client.callTool({
+      name: "memory_path",
+      arguments: { from: "src/entry.ts", to: "RF-99" },
+    });
+    const pathText = (pathRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const pathPayload = JSON.parse(pathText) as {
+      found: boolean;
+      hops: number;
+      nodes: Array<{ name: string }>;
+      explanation: string;
+    };
+
+    expect(pathPayload.found).toBe(true);
+    expect(pathPayload.hops).toBe(2);
+    expect(pathPayload.nodes.map((n) => n.name)).toEqual(["entry.ts", "service.ts", "RF-99"]);
+    expect(pathPayload.explanation).toContain("entry.ts");
+    expect(pathPayload.explanation).toContain("RF-99");
+
+    await client.close();
+    await server.close();
+  });
 });

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Db, upsertNode, upsertEdge } from "../../src/db.ts";
-import { resolveEntity, traceEntity } from "../../src/trace.ts";
+import { findPath, resolveEntity, traceEntity } from "../../src/trace.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -262,6 +262,155 @@ describe("Grafo de Trazabilidad y Resolución (trace.ts)", () => {
       expect(trace.tests).toEqual([]);
       expect(trace.dependencies).toEqual([]);
       expect(trace.dependents).toEqual([]);
+    });
+  });
+
+  describe("Búsqueda de Caminos en el Grafo (findPath)", () => {
+    beforeEach(() => {
+      // Recreamos el grafo base para pruebas de caminos:
+      // test:server --(tests)--> code:server --(implements)--> req:RF-01 --(governed_by)--> req:US-101
+      // code:server --(depends_on)--> code:config
+      // code:cli --(depends_on)--> code:server
+      upsertNode(db, {
+        id: "code:server",
+        type: "code",
+        path: "src/server.ts",
+        name: "server.ts",
+        title: "Servidor MCP",
+      });
+      upsertNode(db, {
+        id: "req:RF-01",
+        type: "requirement",
+        path: "docs/specs/rf-01.md",
+        name: "RF-01",
+        title: "Exposición MCP",
+      });
+      upsertNode(db, {
+        id: "req:US-101",
+        type: "requirement",
+        path: "docs/specs/us-101.md",
+        name: "US-101",
+        title: "Interacción con agente",
+      });
+      upsertNode(db, {
+        id: "test:server",
+        type: "test",
+        path: "tests/unit/server.test.ts",
+        name: "server.test.ts",
+        title: "Tests del servidor",
+      });
+      upsertNode(db, {
+        id: "code:config",
+        type: "code",
+        path: "src/config.ts",
+        name: "config.ts",
+        title: "Configuración",
+      });
+      upsertNode(db, {
+        id: "code:cli",
+        type: "code",
+        path: "src/cli.ts",
+        name: "cli.ts",
+        title: "Interfaz de comandos",
+      });
+
+      upsertEdge(db, {
+        sourceId: "code:server",
+        targetId: "req:RF-01",
+        relation: "implements",
+        meta: { via: "spec-link" },
+      });
+      upsertEdge(db, {
+        sourceId: "req:RF-01",
+        targetId: "req:US-101",
+        relation: "implements",
+        meta: { via: "hierarchy" },
+      });
+      upsertEdge(db, {
+        sourceId: "test:server",
+        targetId: "code:server",
+        relation: "tests",
+        meta: { via: "import" },
+      });
+      upsertEdge(db, {
+        sourceId: "code:server",
+        targetId: "code:config",
+        relation: "depends_on",
+        meta: { via: "import" },
+      });
+      upsertEdge(db, {
+        sourceId: "code:cli",
+        targetId: "code:server",
+        relation: "depends_on",
+        meta: { via: "import" },
+      });
+    });
+
+    it("encuentra camino directo de 1 salto entre entidades conectadas", () => {
+      const res = findPath("src/server.ts", "RF-01", 5, db);
+      expect(res.found).toBe(true);
+      expect(res.hops).toBe(1);
+      expect(res.nodes).toHaveLength(2);
+      expect(res.edges).toHaveLength(1);
+      expect(res.edges[0]).toMatchObject({
+        relation: "implements",
+        direction: "outgoing",
+        via: "spec-link",
+      });
+      expect(res.explanation).toContain("server.ts --(implements via spec-link)--> RF-01");
+    });
+
+    it("encuentra camino de múltiples saltos conectando test -> código -> requisito -> épica", () => {
+      const res = findPath("tests/unit/server.test.ts", "US-101", 6, db);
+      expect(res.found).toBe(true);
+      expect(res.hops).toBe(3);
+      expect(res.nodes.map((n) => n.name)).toEqual(["server.test.ts", "server.ts", "RF-01", "US-101"]);
+      expect(res.edges).toHaveLength(3);
+      expect(res.edges[0].relation).toBe("tests");
+      expect(res.edges[0].direction).toBe("outgoing");
+      expect(res.edges[1].relation).toBe("implements");
+      expect(res.edges[1].direction).toBe("outgoing");
+      expect(res.edges[2].relation).toBe("implements");
+      expect(res.edges[2].direction).toBe("outgoing");
+      expect(res.explanation).toContain("server.test.ts");
+      expect(res.explanation).toContain("US-101");
+    });
+
+    it("encuentra camino en sentido inverso (bidireccional / incoming)", () => {
+      const res = findPath("src/config.ts", "tests/unit/server.test.ts", 6, db);
+      expect(res.found).toBe(true);
+      expect(res.hops).toBe(2);
+      expect(res.nodes.map((n) => n.name)).toEqual(["config.ts", "server.ts", "server.test.ts"]);
+      expect(res.edges[0].direction).toBe("incoming");
+      expect(res.edges[1].direction).toBe("incoming");
+    });
+
+    it("devuelve 0 saltos cuando ambas entidades son la misma", () => {
+      const res = findPath("src/server.ts", "server.ts", 5, db);
+      expect(res.found).toBe(true);
+      expect(res.hops).toBe(0);
+      expect(res.nodes).toHaveLength(1);
+      expect(res.edges).toEqual([]);
+      expect(res.explanation).toContain("es la misma entidad");
+    });
+
+    it("devuelve found=false cuando el camino excede maxHops", () => {
+      // test -> server -> RF-01 -> US-101 requiere 3 saltos; con maxHops=2 no debe encontrarlo
+      const res = findPath("tests/unit/server.test.ts", "US-101", 2, db);
+      expect(res.found).toBe(false);
+      expect(res.hops).toBe(-1);
+      expect(res.nodes).toEqual([]);
+      expect(res.edges).toEqual([]);
+      expect(res.explanation).toContain("No se encontró camino");
+    });
+
+    it("gestiona entidades inexistentes retornando found=false y mensaje claro", () => {
+      const res = findPath("src/inexistente.ts", "RF-01", 5, db);
+      expect(res.found).toBe(false);
+      expect(res.hops).toBe(-1);
+      expect(res.resolvedFrom).toBeNull();
+      expect(res.resolvedTo).not.toBeNull();
+      expect(res.explanation).toContain("No se pudo resolver la entidad de origen");
     });
   });
 });

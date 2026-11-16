@@ -240,11 +240,12 @@ async function main(): Promise<void> {
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
     check(
-      "la superficie por defecto incluye las seis herramientas",
+      "la superficie por defecto incluye las siete herramientas",
       [
         "memory_query",
         "memory_status",
         "memory_trace",
+        "memory_path",
         "memory_record_decision",
         "memory_map",
         "memory_drift",
@@ -276,6 +277,19 @@ async function main(): Promise<void> {
       tracePayload.dependencies.map((d) => d.path).join(", "),
     );
     check("memory_trace devuelve el subgrafo", Array.isArray(tracePayload.requirements));
+
+    // --- memory_path ---------------------------------------------------------
+    const pathRes = await client.callTool({
+      name: "memory_path",
+      arguments: { from: "src/reader.ts", to: "src/helper.ts" },
+    });
+    const pathText = (pathRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const pathPayload = JSON.parse(pathText) as { found: boolean; hops: number; explanation: string };
+    check(
+      "memory_path encuentra la ruta entre reader.ts y helper.ts",
+      pathPayload.found === true && pathPayload.hops === 1,
+      pathPayload.explanation,
+    );
 
     // --- memory_record_decision ----------------------------------------------
     const decision = await client.callTool({
@@ -342,6 +356,7 @@ async function main(): Promise<void> {
     check(
       "PALACE_TOOLS=phase1 restringe la superficie",
       !phase1Names.includes("memory_trace") &&
+        !phase1Names.includes("memory_path") &&
         !phase1Names.includes("memory_record_decision") &&
         !phase1Names.includes("memory_map") &&
         !phase1Names.includes("memory_drift"),
