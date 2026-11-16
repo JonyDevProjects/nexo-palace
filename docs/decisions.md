@@ -34,3 +34,8 @@
 * **Decisión:** Se diferencio self-hosting via isSelfHostingRepo/resolveMcpServerConfig usando node directo sobre src/cli.ts serve en el repo fuente manteniendo npx zero-config en NPM; se corrigio agy mcp add con -- en installer y docs; se anadio fallback de raiz ascendente (.nexo-palace/.agents/.git) en config.ts; y se anadio salvaguarda CLI en hooks/reglas si memory_* no esta en herramientas MCP activas
 * **Archivos relacionados:** src/installer.ts, src/agent-integration.ts, src/config.ts, README.md, README.en.md, docs/mcp-npm-integration-finding.md
 * **Episodio:** `decision:2026-11-16T00-46-17-926Z`
+### 2026-11-16 — trazabilidad, grafo, mcp, caminos, t2
+* **Contexto:** Implementacion de T2 del roadmap v0.2.0: busqueda del camino mas corto entre entidades en el grafo de trazabilidad.
+* **Decisión:** Se implemento la funcion findPath en src/trace.ts empleando una consulta recursiva (WITH RECURSIVE) sobre SQLite que explora aristas bidireccionales con deteccion de ciclos en amplitud (BFS). Se expuso la herramienta MCP memory_path en src/server.ts en la superficie por defecto y el comando CLI nexo-palace path <from> <to> en src/cli.ts.
+* **Archivos relacionados:** src/trace.ts, src/server.ts, src/cli.ts, tests/unit/trace.test.ts, tests/unit/mcp-server.test.ts
+* **Episodio:** `decision:2026-11-16T01-18-55-409Z`

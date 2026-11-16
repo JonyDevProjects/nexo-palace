@@ -6,6 +6,7 @@
  *   nexo-palace index [--provider litert|gemini|ollama|offline] [--model <modelo>] [--best-effort]
  *   nexo-palace query "<texto>" [--scope doc|code|test|taste|requirement|all] [--limit N]
  *   nexo-palace trace "<ruta o símbolo>" [--depth N]
+ *   nexo-palace path "<desde>" "<hacia>" [--max-hops N]
  *   nexo-palace drift [--base <ref>] [--dry-run] [--strict]
  *   nexo-palace decide --context <texto> --decision <texto> [--tags a,b] [--files x,y]
  *   nexo-palace stats
@@ -30,7 +31,7 @@ import { detectDrift } from "./drift.ts";
 import { recordDecision } from "./episodes.ts";
 import { runMap } from "./map.ts";
 import { search } from "./query.ts";
-import { traceEntity } from "./trace.ts";
+import { findPath, traceEntity } from "./trace.ts";
 import { startServer } from "./server.ts";
 import { ProgressBar } from "./tui.ts";
 
@@ -93,6 +94,7 @@ function usage(): void {
       "                                                                       El Arquitecto cartografía el repositorio y teje el grafo",
       "  query <texto> [--scope <scope>] [--limit <n>] [--path <prefijo>]    Consulta híbrida",
       "  trace <entidad> [--depth <n>]                                      Traza el grafo de un archivo o símbolo",
+      "  path <desde> <hacia> [--max-hops <n>]                              Camino más corto entre dos entidades",
       "  drift [--base <ref>] [--dry-run] [--strict]                         Detecta deriva entre código y requisitos",
       "  decide --context <texto> --decision <texto> [--tags a,b] [--files x,y]",
       "                                                                       Registra una decisión en la memoria",
@@ -339,6 +341,20 @@ async function main(): Promise<number> {
       }
       const trace = traceEntity(entity, typeof flags.depth === "string" ? Number(flags.depth) : 2, db);
       process.stdout.write(`${JSON.stringify(trace, null, 2)}\n`);
+      return 0;
+    }
+
+    case "path": {
+      const from = positional[1];
+      const to = positional[2];
+      if (!from || !to) {
+        process.stderr.write("Error: `path` requiere dos entidades: nexo-palace path <desde> <hacia>\n");
+        return 1;
+      }
+      const rawHops = flags["max-hops"] ?? flags.hops;
+      const maxHops = typeof rawHops === "string" ? Number(rawHops) : 6;
+      const result = findPath(from, to, maxHops, db);
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       return 0;
     }
 
