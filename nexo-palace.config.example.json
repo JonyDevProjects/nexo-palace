@@ -6,8 +6,8 @@
   "docs": ["docs"],
   "tasteDirs": [".commandcode/taste"],
 
-  "codeDirs": ["app", "components", "lib", "tests", "e2e"],
-  "codeExtensions": [".ts", ".tsx", ".js", ".jsx"],
+  "codeDirs": ["src", "app", "apps", "components", "lib", "packages", "shared", "tools", "tests", "e2e"],
+  "codeExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".html", ".css", ".scss", ".less", ".sql"],
 
   "requirementPrefixes": ["EPC", "US", "ADR"],
 
