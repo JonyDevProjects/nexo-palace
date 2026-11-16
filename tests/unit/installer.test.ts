@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, statSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   readJsonFileSecure,
@@ -11,6 +11,8 @@ import {
   registerAntigravity,
   registerVsCode,
   autoRegisterMcpClients,
+  isSelfHostingRepo,
+  resolveMcpServerConfig,
   NEXO_PALACE_MCP_SERVER_CONFIG,
 } from "../../src/installer.ts";
 
@@ -224,5 +226,83 @@ describe("MCP client integration & auto-registration", () => {
     expect(clientNames).toContain("Claude Desktop");
     expect(clientNames).toContain("Cursor");
     expect(clientNames).toContain("Google Antigravity");
+  });
+
+  it("isSelfHostingRepo y resolveMcpServerConfig distinguen repositorios consumidores del propio repo fuente", () => {
+    const dir = makeTempDir();
+    const consumer = join(dir, "consumer-app");
+    mkdirSync(consumer, { recursive: true });
+    writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "consumer-app" }), "utf8");
+
+    expect(isSelfHostingRepo(consumer)).toBe(false);
+    expect(resolveMcpServerConfig(consumer)).toEqual(NEXO_PALACE_MCP_SERVER_CONFIG);
+
+    const selfRepo = join(dir, "nexo-palace");
+    mkdirSync(join(selfRepo, "bin"), { recursive: true });
+    mkdirSync(join(selfRepo, "src"), { recursive: true });
+    writeFileSync(
+      join(selfRepo, "package.json"),
+      JSON.stringify({ name: "@ijonydev/nexo-palace" }),
+      "utf8",
+    );
+    writeFileSync(join(selfRepo, "bin", "nexo-palace.js"), "#!/usr/bin/env node\n", "utf8");
+    writeFileSync(join(selfRepo, "src", "cli.ts"), "// cli\n", "utf8");
+
+    expect(isSelfHostingRepo(selfRepo)).toBe(true);
+    expect(resolveMcpServerConfig(selfRepo)).toEqual({
+      command: "node",
+      args: [
+        "--experimental-strip-types",
+        "--no-warnings",
+        join(resolve(selfRepo), "src", "cli.ts"),
+        "serve",
+      ],
+    });
+  });
+
+  it("registerAntigravity usa Node local en el plugin cuando se ejecuta en el repo self-hosted y limpia --arg= en global", () => {
+    const dir = makeTempDir();
+    const selfRepo = join(dir, "nexo-palace");
+    mkdirSync(join(selfRepo, ".agents"), { recursive: true });
+    mkdirSync(join(selfRepo, "bin"), { recursive: true });
+    mkdirSync(join(selfRepo, "src"), { recursive: true });
+    writeFileSync(
+      join(selfRepo, "package.json"),
+      JSON.stringify({ name: "@ijonydev/nexo-palace" }),
+      "utf8",
+    );
+    writeFileSync(join(selfRepo, "bin", "nexo-palace.js"), "#!/usr/bin/env node\n", "utf8");
+    writeFileSync(join(selfRepo, "src", "cli.ts"), "// cli\n", "utf8");
+
+    const globalPath = join(dir, ".gemini", "config", "mcp_config.json");
+    writeJsonFileSecure(globalPath, {
+      mcpServers: {
+        "nexo-palace": {
+          command: "npx",
+          args: ["--arg=-y", "--arg=@ijonydev/nexo-palace", "--arg=serve"],
+          disabled: false,
+        },
+        context7: { command: "npx", args: ["-y", "@upstash/context7-mcp"] },
+      },
+    });
+
+    const result = registerAntigravity(selfRepo, { customGlobalPath: globalPath, skipCli: true });
+    expect(result.success).toBe(true);
+    expect(result.method).toBe("workspace-plugin");
+
+    const pluginCfg = readJsonFileSecure(result.path!);
+    const pluginServer = (pluginCfg.mcpServers as Record<string, any>)["nexo-palace"];
+    expect(pluginServer.command).toBe("node");
+    expect(pluginServer.args).toEqual([
+      "--experimental-strip-types",
+      "--no-warnings",
+      join(resolve(selfRepo), "src", "cli.ts"),
+      "serve",
+    ]);
+
+    const globalCfg = readJsonFileSecure(globalPath);
+    const globalServers = globalCfg.mcpServers as Record<string, any>;
+    expect(globalServers["nexo-palace"]).toEqual(NEXO_PALACE_MCP_SERVER_CONFIG);
+    expect(globalServers.context7).toEqual({ command: "npx", args: ["-y", "@upstash/context7-mcp"] });
   });
 });

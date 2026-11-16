@@ -13,6 +13,7 @@
  *   4. El directorio actual, con los valores por defecto.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 /** Nombre del fichero de configuración del proyecto. */
@@ -138,6 +139,39 @@ export function findConfigFile(startDir: string): string | null {
     if (parent === dir) return null;
     dir = parent;
   }
+}
+
+/**
+ * Cuando un repositorio aún no tiene `nexo-palace.config.json` y el proceso arranca
+ * desde un subdirectorio (como `.agents/plugins/nexo-palace` en Antigravity), localiza
+ * la raíz real mediante marcadores ascendentes (`.nexo-palace`, `.agents` o `.git`),
+ * deteniéndose antes de `$HOME` o la raíz del sistema.
+ */
+function findFallbackProjectRoot(startDir: string): string | null {
+  const home = resolve(homedir());
+  let dir = resolve(startDir);
+  let agentsRoot: string | null = null;
+  let gitRoot: string | null = null;
+
+  for (;;) {
+    const parent = dirname(dir);
+    const isRootOrHome = parent === dir || dir === home;
+    if (!isRootOrHome) {
+      if (existsSync(join(dir, ".nexo-palace", "memory.sqlite3")) || existsSync(join(dir, ".nexo-palace"))) {
+        return dir;
+      }
+      if (!agentsRoot && existsSync(join(dir, ".agents"))) {
+        agentsRoot = dir;
+      }
+      if (!gitRoot && existsSync(join(dir, ".git"))) {
+        gitRoot = dir;
+      }
+    }
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return agentsRoot ?? gitRoot;
 }
 
 /** Lee y valida un fichero de configuración. */
@@ -290,7 +324,7 @@ export function initProject(options: { root?: string; config?: string } = {}): P
       raw = readConfigFile(found);
       root = explicitRoot ? resolve(explicitRoot) : dirname(found);
     } else {
-      root = startDir;
+      root = explicitRoot ? resolve(explicitRoot) : (findFallbackProjectRoot(startDir) ?? startDir);
     }
   }
 

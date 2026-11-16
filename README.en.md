@@ -279,7 +279,7 @@ For **Claude Desktop**, **Cursor**, or **VS Code**, add Nexo-Palace under your `
 Register the universal server directly into your harness:
 
 ```bash
-agy mcp add nexo-palace npx --arg="-y" --arg="@ijonydev/nexo-palace" --arg="serve"
+agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
 ```
 
 > 💡 **Tip:** Run `npx @ijonydev/nexo-palace setup` for guided setup, or `npx @ijonydev/nexo-palace init-agent` to automatically generate agent steering rules (`.agents/rules/nexo-palace.md`, `.cursor/rules/nexo-palace.mdc`, `CLAUDE.md`, `.github/copilot-instructions.md`), an Antigravity workspace plugin with a `SessionStart` bootstrap hook, `palace:*` npm scripts, and safe Git hooks (`post-commit` / `pre-push`).

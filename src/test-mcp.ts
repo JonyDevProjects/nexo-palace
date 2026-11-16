@@ -371,6 +371,28 @@ async function main(): Promise<void> {
       cliStatusPayload.projectName,
     );
     await cliClient.close();
+
+    // --- CLI `serve` lanzado desde subdirectorio del plugin (.agents/plugins/nexo-palace) ---
+    const pluginSubdir = join(fixtureRoot, ".agents", "plugins", "nexo-palace");
+    mkdirSync(pluginSubdir, { recursive: true });
+    const pluginTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: ["--experimental-strip-types", "--no-warnings", CLI, "serve"],
+      cwd: pluginSubdir,
+      stderr: "pipe",
+      env: envWithoutRoot,
+    });
+    const pluginClient = new Client({ name: "palace-plugin-cwd-test", version: "0.1.0" });
+    await pluginClient.connect(pluginTransport);
+    const pluginStatus = await pluginClient.callTool({ name: "memory_status", arguments: {} });
+    const pluginStatusText = (pluginStatus.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const pluginStatusPayload = JSON.parse(pluginStatusText) as { projectName: string };
+    check(
+      "cli.ts serve desde cwd de plugin (.agents/plugins/nexo-palace) resuelve la raíz padre",
+      pluginStatusPayload.projectName === "fixture-test",
+      pluginStatusPayload.projectName,
+    );
+    await pluginClient.close();
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });
   }

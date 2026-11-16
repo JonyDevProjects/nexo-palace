@@ -29,3 +29,8 @@
 * **Decisión:** Se implemento soporte nativo de MCP Roots (roots/list y roots/list_changed), fix de ciclo de vida en cli.ts serve, herramientas MCP memory_map y memory_drift, modulo agent-integration con comando init-agent para reglas multi-harness (.agents, Cursor, Claude, Copilot), plugin Antigravity con SessionStart hook y Git hooks seguros con map --best-effort
 * **Archivos relacionados:** src/server.ts, src/cli.ts, src/map.ts, src/agent-integration.ts, src/installer.ts, src/drift.ts
 * **Episodio:** `decision:2026-11-15T23-27-05-604Z`
+### 2026-11-16 — mcp, self-hosting, npm, antigravity, config
+* **Contexto:** El plugin del workspace en el repo fuente usaba npx y colisionaba con el paquete local (exit 127), agy mcp add recibia flags inexistentes --arg=, y config.ts sin nexo-palace.config.json caia al cwd del plugin
+* **Decisión:** Se diferencio self-hosting via isSelfHostingRepo/resolveMcpServerConfig usando node directo sobre src/cli.ts serve en el repo fuente manteniendo npx zero-config en NPM; se corrigio agy mcp add con -- en installer y docs; se anadio fallback de raiz ascendente (.nexo-palace/.agents/.git) en config.ts; y se anadio salvaguarda CLI en hooks/reglas si memory_* no esta en herramientas MCP activas
+* **Archivos relacionados:** src/installer.ts, src/agent-integration.ts, src/config.ts, README.md, README.en.md, docs/mcp-npm-integration-finding.md
+* **Episodio:** `decision:2026-11-16T00-46-17-926Z`

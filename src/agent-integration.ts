@@ -9,7 +9,26 @@
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { isCommandAvailable, NEXO_PALACE_MCP_SERVER_CONFIG, readJsonFileSecure } from "./installer.ts";
+import { fileURLToPath } from "node:url";
+import {
+  isCommandAvailable,
+  isSelfHostingRepo,
+  readJsonFileSecure,
+  resolveMcpServerConfig,
+} from "./installer.ts";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** Lee la versión del paquete desde `package.json` (funciona tanto en `src/` como en `dist/`). */
+function readPackageVersion(): string {
+  try {
+    const pkg = readJsonFileSecure(join(HERE, "..", "package.json")) as { version?: string };
+    if (pkg.version?.trim()) return pkg.version.trim();
+  } catch {
+    /* fallback */
+  }
+  return "0.1.4";
+}
 
 export const HARNESS_IDS = ["antigravity", "cursor", "claude", "copilot"] as const;
 export type HarnessId = (typeof HARNESS_IDS)[number];
@@ -145,7 +164,7 @@ export function detectHarnesses(projectRoot: string): HarnessId[] {
 }
 
 /** Genera la directiva de protocolo de memoria activa de Nexo-Palace. */
-export function buildAgentProtocolMarkdown(projectName: string): string {
+export function buildAgentProtocolMarkdown(projectName: string, palaceCommand = "nxpl"): string {
   return [
     `# Memoria Activa del Proyecto (${projectName}) — Nexo-Palace`,
     "",
@@ -156,33 +175,34 @@ export function buildAgentProtocolMarkdown(projectName: string): string {
     "- Usa `memory_query({ query, scope?, limit?, pathPrefix? })` con palabras clave o IDs (`RF`, `US`, `EPC`, `ADR`) para localizar especificaciones, código relevante y convenciones (`taste`).",
     "- Usa `memory_trace({ entity, depth? })` sobre los archivos o símbolos clave que vayas a modificar para conocer sus dependencias, tests vinculados y requisitos implementados.",
     "- Una vez localizados los archivos exactos, lee únicamente los fragmentos o rangos necesarios.",
+    `- Si las herramientas \`memory_*\` no figuran en tu lista MCP activa de la sesión, no fuerces la llamada MCP; usa el CLI (\`${palaceCommand} query\`, \`${palaceCommand} trace\`) como respaldo.`,
     "",
     "## 2. Registro de Decisiones",
     "- Cuando adoptes un patrón arquitectónico, elijas una biblioteca, cambies un contrato o resuelvas un bug no trivial, invoca `memory_record_decision({ context, decision, tags?, relatedFiles? })`.",
     "",
     "## 3. Sincronización y Cierre",
-    "- Tras completar cambios en código o documentación, ejecuta `memory_map({})` (o `nxpl map`) para mantener sincronizados el grafo AST y los embeddings.",
-    "- Antes de cerrar la tarea, ejecuta `memory_drift({ dryRun: true })` (o `nxpl drift --dry-run`) para comprobar si algún requisito vinculado requiere revisión.",
+    `- Tras completar cambios en código o documentación, ejecuta \`memory_map({})\` (o \`${palaceCommand} map\`) para mantener sincronizados el grafo AST y los embeddings.`,
+    `- Antes de cerrar la tarea, ejecuta \`memory_drift({ dryRun: true })\` (o \`${palaceCommand} drift --dry-run\`) para comprobar si algún requisito vinculado requiere revisión.`,
     "- Usa `memory_status({})` si necesitas verificar qué proyecto y proveedor están activos.",
     "",
   ].join("\n");
 }
 
 /** Genera la regla `.mdc` de Cursor con `alwaysApply: true`. */
-export function buildCursorRuleMdc(projectName: string): string {
+export function buildCursorRuleMdc(projectName: string, palaceCommand = "nxpl"): string {
   return [
     "---",
     `description: Protocolo obligatorio de memoria activa con Nexo-Palace MCP para ${projectName}`,
     "alwaysApply: true",
     "---",
     "",
-    buildAgentProtocolMarkdown(projectName).trimEnd(),
+    buildAgentProtocolMarkdown(projectName, palaceCommand).trimEnd(),
     "",
   ].join("\n");
 }
 
 /** Genera el `SKILL.md` para descubrimiento progresivo en Antigravity / agentes compatibles. */
-function buildAntigravitySkillMd(projectName: string): string {
+function buildAntigravitySkillMd(projectName: string, palaceCommand = "nxpl"): string {
   return [
     "---",
     "name: nexo-palace",
@@ -191,7 +211,7 @@ function buildAntigravitySkillMd(projectName: string): string {
     "  Use BEFORE mass grep/file reads and AFTER code edits to keep memory synchronized.",
     "---",
     "",
-    buildAgentProtocolMarkdown(projectName).trimEnd(),
+    buildAgentProtocolMarkdown(projectName, palaceCommand).trimEnd(),
     "",
   ].join("\n");
 }
@@ -201,7 +221,8 @@ function buildAntigravitySkillMd(projectName: string): string {
  * Usa un fichero `.cjs` dedicado en lugar de `node -e` inline para evitar
  * problemas de escaping entre `sh -c` (Unix) y `cmd /c` (Windows).
  */
-function buildAntigravitySessionHookScript(): string {
+function buildAntigravitySessionHookScript(palaceCommand = "nxpl"): string {
+  const safeCli = palaceCommand.replace(/'/g, "\\'");
   return [
     "const fs = require('node:fs');",
     "const path = require('node:path');",
@@ -224,8 +245,8 @@ function buildAntigravitySessionHookScript(): string {
     "",
     "  const dbExists = fs.existsSync(path.join(root, '.nexo-palace', 'memory.sqlite3'));",
     "  const msg = dbExists",
-    "    ? 'Nexo-Palace MCP activo. Antes de explorar archivos con grep/read_file, usa memory_query(query, scope?, limit?, pathPrefix?) y memory_trace(entity, depth?). Registra decisiones con memory_record_decision(context, decision, tags?, relatedFiles?). Tras editar, sincroniza con memory_map() y revisa impacto con memory_drift(dryRun?).'",
-    "    : 'Nexo-Palace plugin activo, pero aún no existe .nexo-palace/memory.sqlite3. Ejecuta memory_map() o `nxpl map` para indexar el proyecto.';",
+    `    ? 'Nexo-Palace disponible para este proyecto. Si las herramientas memory_* están en tu lista MCP activa, úsalas antes de explorar con grep/read_file: memory_query(query, scope?, limit?, pathPrefix?), memory_trace(entity, depth?), memory_record_decision(context, decision, tags?, relatedFiles?), memory_map() y memory_drift(dryRun?). Si memory_* no figura en tu lista MCP activa, no fuerces la llamada MCP y usa \`${safeCli}\` como respaldo.'`,
+    `    : 'Nexo-Palace plugin instalado, pero aún no existe .nexo-palace/memory.sqlite3. Ejecuta memory_map() (si está disponible en tus herramientas MCP activas) o \`${safeCli} map\` para indexar el proyecto.';`,
     "",
     "  process.stdout.write(JSON.stringify({ injectSteps: [{ systemMessage: { systemMessage: msg } }] }));",
     "});",
@@ -251,6 +272,9 @@ function buildAntigravityHooksJson(): string {
 
 /** Determina el comando apropiado para invocar Nexo-Palace en scripts y git hooks. */
 export function resolvePalaceCommand(projectRoot: string): string {
+  if (isSelfHostingRepo(projectRoot)) {
+    return "node bin/nexo-palace.js";
+  }
   const pkgPath = join(projectRoot, "package.json");
   if (existsSync(pkgPath)) {
     try {
@@ -410,13 +434,16 @@ export function initAgentIntegration(
 ): InitAgentReport {
   const dryRun = options.dryRun ?? false;
   const projectName = inferProjectName(projectRoot);
+  const palaceCommand = resolvePalaceCommand(projectRoot);
+  const mcpServerConfig = resolveMcpServerConfig(projectRoot);
+  const packageVersion = readPackageVersion();
   const harnesses =
     options.harnesses && options.harnesses.length > 0
       ? [...new Set(options.harnesses)]
       : detectHarnesses(projectRoot);
 
   const changes: FileChangeEntry[] = [];
-  const protocolMd = buildAgentProtocolMarkdown(projectName);
+  const protocolMd = buildAgentProtocolMarkdown(projectName, palaceCommand);
 
   for (const harness of harnesses) {
     switch (harness) {
@@ -444,7 +471,7 @@ export function initAgentIntegration(
               {
                 name: "nexo-palace",
                 description: `Memoria activa de proyecto e índice híbrido para ${projectName}`,
-                version: "0.1.4",
+                version: packageVersion,
               },
               null,
               2,
@@ -458,7 +485,7 @@ export function initAgentIntegration(
           writeTextIfChanged(
             join(pluginDir, "mcp_config.json"),
             `${pluginRel}/mcp_config.json`,
-            `${JSON.stringify({ mcpServers: { "nexo-palace": NEXO_PALACE_MCP_SERVER_CONFIG } }, null, 2)}\n`,
+            `${JSON.stringify({ mcpServers: { "nexo-palace": mcpServerConfig } }, null, 2)}\n`,
             "plugin",
             dryRun,
           ),
@@ -478,7 +505,7 @@ export function initAgentIntegration(
           writeTextIfChanged(
             join(pluginDir, "skills", "nexo-palace", "SKILL.md"),
             `${pluginRel}/skills/nexo-palace/SKILL.md`,
-            buildAntigravitySkillMd(projectName),
+            buildAntigravitySkillMd(projectName, palaceCommand),
             "plugin",
             dryRun,
           ),
@@ -489,7 +516,7 @@ export function initAgentIntegration(
             writeTextIfChanged(
               join(pluginDir, "hooks", "session-start.cjs"),
               `${pluginRel}/hooks/session-start.cjs`,
-              buildAntigravitySessionHookScript(),
+              buildAntigravitySessionHookScript(palaceCommand),
               "plugin",
               dryRun,
             ),
@@ -512,7 +539,7 @@ export function initAgentIntegration(
           writeTextIfChanged(
             join(projectRoot, ".cursor", "rules", "nexo-palace.mdc"),
             ".cursor/rules/nexo-palace.mdc",
-            buildCursorRuleMdc(projectName),
+            buildCursorRuleMdc(projectName, palaceCommand),
             "rule",
             dryRun,
           ),
@@ -557,7 +584,7 @@ export function initAgentIntegration(
     projectRoot,
     projectName,
     harnesses,
-    palaceCommand: resolvePalaceCommand(projectRoot),
+    palaceCommand,
     changes,
   };
 }

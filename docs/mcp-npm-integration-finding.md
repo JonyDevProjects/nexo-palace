@@ -12,7 +12,7 @@ Durante el desarrollo local, es habitual registrar el servidor MCP utilizando ru
 
 ```bash
 # ⚠️ Configuración atada al entorno de desarrollo local:
-agy mcp add nexo-palace node --arg="--experimental-strip-types" --arg="/Users/.../nexo-palace/src/server.ts"
+agy mcp add nexo-palace -- node --experimental-strip-types /Users/.../nexo-palace/src/server.ts
 ```
 
 ### Por qué esto falla para el usuario final de NPM:
@@ -58,7 +58,7 @@ Por tanto, la configuración oficial y universal para cualquier cliente MCP debe
 ### B. Para Google Antigravity (`agy`)
 El comando de registro universal sin dependencias de rutas locales es:
 ```bash
-agy mcp add nexo-palace npx --arg="-y" --arg="@ijonydev/nexo-palace" --arg="serve"
+agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
 ```
 
 ---

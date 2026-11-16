@@ -7,7 +7,7 @@
  * Compatible con: macOS, Linux, Windows (via npm install en WSL o Git Bash)
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, renameSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { platform, homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 
@@ -228,6 +228,45 @@ export const NEXO_PALACE_MCP_SERVER_CONFIG = {
   args: ["-y", "@ijonydev/nexo-palace", "serve"],
 };
 
+/**
+ * Indica si `projectRoot` es el propio repositorio fuente de `@ijonydev/nexo-palace`.
+ * En ese caso, `npx -y @ijonydev/nexo-palace` colisiona con el paquete local
+ * porque npm intenta ejecutar el binario local sin estar instalado en `node_modules/.bin`.
+ */
+export function isSelfHostingRepo(projectRoot: string): boolean {
+  const root = resolve(projectRoot);
+  const pkgPath = join(root, "package.json");
+  if (!existsSync(pkgPath)) return false;
+  if (!existsSync(join(root, "bin", "nexo-palace.js"))) return false;
+  if (!existsSync(join(root, "src", "cli.ts"))) return false;
+  try {
+    const pkg = readJsonFileSecure(pkgPath) as { name?: string };
+    return pkg.name === "@ijonydev/nexo-palace";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resuelve la configuración MCP adecuada para un workspace.
+ * En proyectos consumidores devuelve `NEXO_PALACE_MCP_SERVER_CONFIG` (zero-config vía npx);
+ * en el propio repositorio fuente devuelve invocación directa con Node sobre `src/cli.ts`.
+ */
+export function resolveMcpServerConfig(projectRoot: string): { command: string; args: string[] } {
+  if (isSelfHostingRepo(projectRoot)) {
+    return {
+      command: "node",
+      args: [
+        "--experimental-strip-types",
+        "--no-warnings",
+        join(resolve(projectRoot), "src", "cli.ts"),
+        "serve",
+      ],
+    };
+  }
+  return NEXO_PALACE_MCP_SERVER_CONFIG;
+}
+
 /** Inyecta o actualiza la configuración de un servidor MCP en un archivo JSON de forma segura y atómica */
 export function injectMcpServerConfig(
   targetFile: string,
@@ -314,7 +353,7 @@ export function registerCursor(
     const projDir = join(projectRoot, ".cursor");
     if (existsSync(projDir)) {
       const projPath = getCursorProjectConfigPath(projectRoot);
-      injectMcpServerConfig(projPath);
+      injectMcpServerConfig(projPath, "nexo-palace", resolveMcpServerConfig(projectRoot));
       registeredPaths.push(projPath);
     }
 
@@ -347,16 +386,32 @@ export function getAntigravityPluginConfigPath(projectRoot: string): string {
 }
 
 /**
- * Si existe un archivo legacy (`~/.gemini/antigravity/mcp_config.json`) con una
- * entrada de `nexo-palace`, la actualiza para eliminar rutas fijas (`NEXO_PALACE_ROOT`).
+ * Detecta entradas legacy o malformadas de `nexo-palace` (con `NEXO_PALACE_ROOT` fijo
+ * o argumentos `--arg=` literales heredados de invocaciones antiguas de `agy mcp add`).
  */
-function sanitizeAntigravityLegacyConfig(legacyPath: string): void {
-  if (!existsSync(legacyPath)) return;
+function hasBrokenAntigravityMcpEntry(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  const cfg = entry as { args?: unknown; env?: Record<string, unknown> };
+  if (cfg.env && "NEXO_PALACE_ROOT" in cfg.env) return true;
+  if (Array.isArray(cfg.args) && cfg.args.some((a) => typeof a === "string" && a.startsWith("--arg="))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Si existe un archivo de configuración de Antigravity con una entrada de `nexo-palace`
+ * legacy o malformada, la sanea reemplazándola por la configuración universal.
+ */
+function sanitizeAntigravityConfigFile(configPath: string, forceReplace = false): void {
+  if (!existsSync(configPath)) return;
   try {
-    const parsed = readJsonFileSecure(legacyPath);
+    const parsed = readJsonFileSecure(configPath);
     const servers = parsed.mcpServers as Record<string, unknown> | undefined;
     if (servers && "nexo-palace" in servers) {
-      injectMcpServerConfig(legacyPath);
+      if (forceReplace || hasBrokenAntigravityMcpEntry(servers["nexo-palace"])) {
+        injectMcpServerConfig(configPath);
+      }
     }
   } catch {
     /* no bloqueante */
@@ -387,21 +442,25 @@ export function registerAntigravity(
   options?: { customGlobalPath?: string; customLegacyPath?: string; skipCli?: boolean },
 ): { success: boolean; method: string; path?: string; error?: string } {
   const legacyPath = options?.customLegacyPath ?? getAntigravityLegacyConfigPath();
-  sanitizeAntigravityLegacyConfig(legacyPath);
+  const globalPath = options?.customGlobalPath ?? getAntigravityGlobalConfigPath();
+  sanitizeAntigravityConfigFile(legacyPath, true);
+  sanitizeAntigravityConfigFile(globalPath, false);
+
+  const workspaceMcpConfig = resolveMcpServerConfig(projectRoot);
 
   // 1. Si agy CLI está disponible en el PATH y no se solicita omitir, registrar con agy mcp add
   if (!options?.skipCli && isCommandAvailable("agy")) {
     try {
       const res = spawnSync(
         "agy",
-        ["mcp", "add", "nexo-palace", "npx", "--arg=-y", "--arg=@ijonydev/nexo-palace", "--arg=serve"],
+        ["mcp", "add", "nexo-palace", "--", "npx", "-y", "@ijonydev/nexo-palace", "serve"],
         { stdio: "pipe" },
       );
       if (res.status === 0) {
-        // Si además existe .agents en el proyecto, sincronizar también el plugin
+        // Si además existe .agents en el proyecto, sincronizar también el plugin del workspace
         if (existsSync(join(projectRoot, ".agents"))) {
           try {
-            injectMcpServerConfig(getAntigravityPluginConfigPath(projectRoot));
+            injectMcpServerConfig(getAntigravityPluginConfigPath(projectRoot), "nexo-palace", workspaceMcpConfig);
           } catch {
             /* no bloqueante */
           }
@@ -418,7 +477,7 @@ export function registerAntigravity(
   if (existsSync(agentsDir)) {
     try {
       const pluginMcpPath = getAntigravityPluginConfigPath(projectRoot);
-      injectMcpServerConfig(pluginMcpPath);
+      injectMcpServerConfig(pluginMcpPath, "nexo-palace", workspaceMcpConfig);
       return { success: true, method: "workspace-plugin", path: pluginMcpPath };
     } catch (err) {
       return { success: false, method: "workspace-plugin", error: (err as Error).message };
@@ -426,7 +485,6 @@ export function registerAntigravity(
   }
 
   // 3. Fallback a ~/.gemini/config/mcp_config.json
-  const globalPath = options?.customGlobalPath ?? getAntigravityGlobalConfigPath();
   const globalDir = dirname(globalPath);
   if (existsSync(globalDir) || existsSync(join(homedir(), ".gemini"))) {
     try {
@@ -467,7 +525,7 @@ export function registerVsCode(projectRoot = PROJECT_ROOT): { success: boolean; 
   }
   const targetPath = getVsCodeProjectConfigPath(projectRoot);
   try {
-    injectMcpServerConfig(targetPath);
+    injectMcpServerConfig(targetPath, "nexo-palace", resolveMcpServerConfig(projectRoot));
     return { success: true, path: targetPath };
   } catch (err) {
     return { success: false, path: targetPath, error: (err as Error).message };
