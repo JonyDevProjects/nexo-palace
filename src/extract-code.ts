@@ -1,10 +1,11 @@
 /**
- * Nexo-Palace Engine — extractor de código y grafo de trazabilidad (Fase 2).
+ * Nexo-Palace Engine — extractor de código y grafo de trazabilidad políglota (Fase 2).
  *
- * Usa `ts-morph` para recorrer `app/`, `components/`, `lib/` y los directorios
- * de test, y de ahí obtiene:
+ * Utiliza un registro de extractores de lenguaje (TypeScript con ts-morph,
+ * Python con tree-sitter, etc.) para procesar el código fuente del proyecto y
+ * construir el grafo de trazabilidad con:
  *   * nodos de archivo y de símbolo (funciones, clases, componentes exportados);
- *   * aristas `implements` a requisitos, leídos de los comentarios del código;
+ *   * aristas `implements` a requisitos, leídos de comentarios y docstrings;
  *   * aristas `tests` de los tests a los módulos que importan;
  *   * aristas `depends_on` a partir de los imports reales;
  *   * aristas `references` desde los documentos que citan rutas de código;
@@ -14,9 +15,8 @@
  * citadas, imports reales, identificadores de épica en comentarios. Ninguna
  * relación se infiere del significado del texto.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { Project, SyntaxKind, type SourceFile } from "ts-morph";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { getConfig, MIN_EMBED_CHARS, projectRoot } from "./config.ts";
 import {
   type Db,
@@ -30,8 +30,14 @@ import {
   upsertNode,
 } from "./db.ts";
 import { type EmbeddingProvider } from "./embedder.ts";
-import { extractRequirementIds } from "./markdown.ts";
-import { isMarkdown, repoRelative, walkFiles } from "./util.ts";
+import {
+  createDefaultRegistry,
+  ExtractorRegistry,
+  type ExtractedFile,
+  type ExtractedSymbol,
+  type LanguageExtractor,
+} from "./extractors/index.ts";
+import { repoRelative, walkFiles } from "./util.ts";
 
 /** Resumen de la extracción de código. */
 export interface CodeExtractResult {
@@ -44,21 +50,13 @@ export interface CodeExtractResult {
   errors: string[];
 }
 
-/** Un símbolo de código exportado. */
-interface SymbolInfo {
-  name: string;
-  kind: string;
-  signature: string;
-  doc: string;
-  /** Requisitos citados en el comentario de documentación del símbolo. */
-  reqIds: string[];
-  /** Requisitos citados dentro del cuerpo del símbolo (comentarios JSX, etc.). */
-  bodyReqIds: string[];
-  line: number;
-}
+/** Alias retrocompatible para símbolos extraídos. */
+export type SymbolInfo = ExtractedSymbol;
+export type { ExtractedFile, ExtractedSymbol, LanguageExtractor };
+export { ExtractorRegistry, createDefaultRegistry };
 
 /** Hash determinista de contenido (djb2 en hexadecimal). */
-function hashContent(text: string): string {
+export function hashContent(text: string): string {
   let hash = 5381;
   for (let i = 0; i < text.length; i++) {
     hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
@@ -67,189 +65,27 @@ function hashContent(text: string): string {
 }
 
 /** Detecta si una ruta corresponde a un archivo de test. */
-function isTestPath(relPath: string): boolean {
+export function isTestPath(relPath: string): boolean {
   if (/^(tests|test|e2e)\//.test(relPath)) return true;
-  return /\.(test|spec)\.[cm]?[jt]sx?$/.test(relPath);
-}
-
-/**
- * Extrae el comentario de cabecera de un archivo.
- * `SourceFile.getLeadingCommentRanges()` no devuelve el comentario inicial
- * del fichero, así que se lee del texto plano.
- */
-function fileHeaderComment(text: string): string {
-  const match = /^\s*(\/\*\*[\s\S]*?\*\/|\/\/[^\n]*)/.exec(text);
-  if (!match) return "";
-  return leadingDoc(match[1]);
-}
-
-/** Extrae el comentario de documentación que precede a un nodo AST. */
-function leadingDoc(text: string): string {
-  return text
-    .replace(/^\s*\/\*\*?/g, "")
-    .replace(/\*\/\s*$/g, "")
-    .replace(/^\s*\*\s?/gm, "")
-    .trim();
-}
-
-/** Construye la firma textual de una función exportada. */
-function functionSignature(fn: ReturnType<SourceFile["getFunctions"]>[number]): string {
-  try {
-    const params = fn.getParameters().map((p) => p.getText()).join(", ");
-    const ret = fn.getReturnType().getText(fn).replace(/\s+/g, " ");
-    return `${fn.getName()}(${params}): ${ret}`;
-  } catch {
-    return fn.getName() ?? "<anónimo>";
-  }
-}
-
-/** Extrae símbolos exportados de un archivo TypeScript. */
-function extractSymbols(sf: SourceFile): SymbolInfo[] {
-  const out: SymbolInfo[] = [];
-
-  for (const fn of sf.getFunctions()) {
-    if (!fn.isExported()) continue;
-    const name = fn.getName() ?? "<anónimo>";
-    const doc = leadingDoc(fn.getLeadingCommentRanges().map((r) => r.getText()).join("\n"));
-    const docReqIds = extractRequirementIds(`${doc}\n${name}`);
-    const bodyReqIds = extractRequirementIds(fn.getText()).filter((id) => !docReqIds.includes(id));
-    out.push({
-      name,
-      kind: "function",
-      signature: functionSignature(fn),
-      doc,
-      reqIds: docReqIds,
-      bodyReqIds,
-      line: fn.getStartLineNumber(),
-    });
-  }
-
-  for (const cls of sf.getClasses()) {
-    if (!cls.isExported()) continue;
-    const name = cls.getName() ?? "<anónimo>";
-    const doc = leadingDoc(cls.getLeadingCommentRanges().map((r) => r.getText()).join("\n"));
-    const docReqIds = extractRequirementIds(`${doc}\n${name}`);
-    out.push({
-      name,
-      kind: "class",
-      signature: `class ${name}`,
-      doc,
-      reqIds: docReqIds,
-      bodyReqIds: extractRequirementIds(cls.getText()).filter((id) => !docReqIds.includes(id)),
-      line: cls.getStartLineNumber(),
-    });
-  }
-
-  // Componentes y constantes exportadas (`export const X = (...) => ...`).
-  for (const declaration of sf.getVariableDeclarations()) {
-    const isExported = declaration.getVariableStatement()?.isExported() ?? false;
-    if (!isExported) continue;
-    const initializer = declaration.getInitializer();
-    if (!initializer) continue;
-    const isArrow = initializer.getKind() === SyntaxKind.ArrowFunction;
-    const isComponent = /^[A-Z]/.test(declaration.getName());
-    if (!isArrow && !isComponent) continue;
-
-    const varName = declaration.getName();
-    const doc = leadingDoc(declaration.getLeadingCommentRanges().map((r) => r.getText()).join("\n"));
-    let typeText = "unknown";
-    try {
-      typeText = declaration.getType().getText(declaration).replace(/\s+/g, " ").slice(0, 300);
-    } catch {
-      typeText = "unknown";
-    }
-    const docReqIds = extractRequirementIds(`${doc}\n${varName}`);
-    let bodyText = "";
-    try {
-      bodyText = declaration.getText();
-    } catch {
-      bodyText = "";
-    }
-    out.push({
-      name: varName,
-      kind: isComponent ? "component" : "const",
-      signature: `${varName}: ${typeText}`,
-      doc,
-      reqIds: docReqIds,
-      bodyReqIds: extractRequirementIds(bodyText).filter((id) => !docReqIds.includes(id)),
-      line: declaration.getStartLineNumber(),
-    });
-  }
-
-  // Deduplicar por nombre (una función y una variable pueden coincidir).
-  const seen = new Set<string>();
-  return out.filter((s) => {
-    if (seen.has(s.name)) return false;
-    seen.add(s.name);
-    return true;
-  });
+  if (/(?:^|\/)(?:tests|test|e2e|backend-e2e|frontend-e2e|__tests__)\//.test(relPath)) return true;
+  if (/\.(test|spec)\.(?:[cm]?[jt]sx?|py|html|css|scss|sql)$/.test(relPath)) return true;
+  if (/(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py)$/.test(relPath)) return true;
+  return false;
 }
 
 /** Detecta los paths de código citados dentro de un texto. */
-function findCodePaths(text: string, knownPaths: Set<string>): string[] {
+export function findCodePaths(text: string, knownPaths: Set<string>): string[] {
   const found = new Set<string>();
-  const re = /(?:^|[\s`("'\[])((?:app|components|lib|tests|test|e2e|scripts|data)\/[\w./-]+\.[cm]?[jt]sx?)/g;
+  const re = /(?:^|[\s`("'\[])([\w./-]+\.(?:[cm]?[jt]sx?|py|html|css|scss|less|sql))/g;
   for (const match of text.matchAll(re)) {
-    const candidate = match[1];
+    const candidate = match[1].replace(/^[./]+/, "");
     if (knownPaths.has(candidate)) found.add(candidate);
   }
   return Array.from(found);
 }
 
 /**
- * Recoge las rutas de los módulos importados por un archivo.
- * Se capturan tanto los imports estáticos como los dinámicos
- * (`await import("...")`), que son comunes en los tests de este proyecto.
- * Solo se devuelven las que pertenecen al proyecto (no `node_modules`).
- */
-function collectImportTargets(sf: SourceFile, knownPaths: Set<string>): string[] {
-  const out = new Set<string>();
-
-  const add = (absPath: string): void => {
-    const rel = repoRelative(absPath);
-    if (knownPaths.has(rel)) out.add(rel);
-  };
-
-  for (const imp of sf.getImportDeclarations()) {
-    const target = imp.getModuleSpecifierSourceFile();
-    if (target) add(target.getFilePath());
-  }
-
-  // Imports dinámicos: `await import("./modulo")`.
-  for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
-    if (call.getExpression().getKind() !== SyntaxKind.ImportKeyword) continue;
-    const [arg] = call.getArguments();
-    if (!arg || arg.getKind() !== SyntaxKind.StringLiteral) continue;
-    const specifier = (arg as import("ts-morph").StringLiteral).getLiteralValue();
-    const resolved = resolveRelativeImport(sf, specifier);
-    if (resolved) add(resolved);
-  }
-
-  return Array.from(out);
-}
-
-/** Resuelve un especificador de import relativo a un fichero del proyecto. */
-function resolveRelativeImport(sf: SourceFile, specifier: string): string | null {
-  if (!specifier.startsWith(".")) return null;
-  const dir = dirname(sf.getFilePath());
-  const base = resolve(dir, specifier);
-  const candidates = [
-    base,
-    `${base}.ts`,
-    `${base}.tsx`,
-    `${base}.js`,
-    `${base}.jsx`,
-    join(base, "index.ts"),
-    join(base, "index.tsx"),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
-  }
-  return null;
-}
-
-/**
- * Extrae el grafo de código y lo escribe en la base.
+ * Extrae el grafo de código y lo escribe en la base de datos.
  */
 export async function extractCode(
   provider: EmbeddingProvider,
@@ -257,10 +93,12 @@ export async function extractCode(
     db?: Db;
     allowProviderSwitch?: boolean;
     onProgress?: (current: number, total: number, message: string) => void;
+    registry?: ExtractorRegistry;
   } = {},
 ): Promise<CodeExtractResult> {
   const db = options.db ?? openDb();
   const errors: string[] = [];
+  const registry = options.registry ?? createDefaultRegistry();
 
   // --- Recolectar archivos -------------------------------------------------
   const files: string[] = [];
@@ -277,21 +115,26 @@ export async function extractCode(
 
   const relPaths = files.map((f) => repoRelative(f));
   const knownPaths = new Set(relPaths);
+  const context = { root, knownPaths, codeDirs: config.codeDirs };
 
-  // --- Parseo con ts-morph -------------------------------------------------
-  const project = new Project({
-    skipAddingFilesFromTsConfig: true,
-    compilerOptions: {
-      allowJs: true,
-      jsx: 4,
-      target: 99,
-      // El proyecto usa el alias `@/...`; sin esto las dependencias de los
-      // componentes no se resolverían y el grafo de imports quedaría vacío.
-      baseUrl: root,
-      paths: { "@/*": ["./*"] },
-    },
-  });
-  project.addSourceFilesAtPaths(files);
+  // --- Inicializar extractores con los archivos correspondientes -----------
+  const filesByExtractor = new Map<LanguageExtractor, string[]>();
+  for (const file of files) {
+    const extractor = registry.getExtractorForPath(file);
+    if (!extractor) continue;
+    let list = filesByExtractor.get(extractor);
+    if (!list) {
+      list = [];
+      filesByExtractor.set(extractor, list);
+    }
+    list.push(file);
+  }
+
+  for (const [extractor, extractorFiles] of filesByExtractor) {
+    if (extractor.init) {
+      await extractor.init(extractorFiles, context);
+    }
+  }
 
   ensureVecTable(db, provider.dim, provider.name, {
     allowSwitch: options.allowProviderSwitch,
@@ -306,14 +149,32 @@ export async function extractCode(
 
   const chunkTexts: string[] = [];
   const importsByFile: Array<{ relPath: string; imports: string[] }> = [];
-  const sourceFiles = project.getSourceFiles().filter((sf) => knownPaths.has(repoRelative(sf.getFilePath())));
   let processedFiles = 0;
 
-  for (const sf of sourceFiles) {
-    const relPath = repoRelative(sf.getFilePath());
+  for (const file of files) {
+    const relPath = repoRelative(file);
+    const extractor = registry.getExtractorForPath(file);
+    if (!extractor) continue;
+
     processedFiles++;
     if (options.onProgress) {
-      options.onProgress(processedFiles, sourceFiles.length, relPath);
+      options.onProgress(processedFiles, files.length, relPath);
+    }
+
+    let fileText = "";
+    try {
+      fileText = readFileSync(file, "utf8");
+    } catch (err) {
+      errors.push(`${relPath}: ${(err as Error).message}`);
+      continue;
+    }
+
+    let extracted: ExtractedFile;
+    try {
+      extracted = await extractor.extract(file, fileText, context);
+    } catch (err) {
+      errors.push(`${relPath}: ${(err as Error).message}`);
+      continue;
     }
 
     const isTest = isTestPath(relPath);
@@ -322,33 +183,27 @@ export async function extractCode(
     fileNodeIds.add(fileNodeId);
     if (isTest) testCount++;
 
-    const fileText = sf.getFullText();
-    const headerComment = fileHeaderComment(sf.getFullText());
-    const fileReqIds = extractRequirementIds(headerComment);
-
-    const symbols = extractSymbols(sf);
-
     upsertNode(db, {
       id: fileNodeId,
       type: nodeType,
       path: relPath,
       name: relPath.split("/").pop() ?? relPath,
       status: "active",
-      title: symbols.length > 0 ? symbols.map((s) => s.name).join(", ") : relPath,
+      title: extracted.symbols.length > 0 ? extracted.symbols.map((s) => s.name).join(", ") : relPath,
       meta: {
         kind: "file",
-        symbolCount: symbols.length,
-        requirementIds: fileReqIds,
+        symbolCount: extracted.symbols.length,
+        requirementIds: extracted.fileReqIds,
       },
       updatedAt: new Date().toISOString(),
     });
 
     // Fragmento resumen del archivo.
-    const headerDoc = headerComment;
+    const headerDoc = extracted.headerComment;
     const fileSummary = [
       `Archivo: ${relPath}`,
       headerDoc ? `Descripción: ${headerDoc}` : "",
-      symbols.length > 0 ? `Exporta: ${symbols.map((s) => s.name).join(", ")}` : "",
+      extracted.symbols.length > 0 ? `Exporta: ${extracted.symbols.map((s) => s.name).join(", ")}` : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -360,7 +215,7 @@ export async function extractCode(
         seq: 0,
         content: fileSummary,
         headerPath: relPath,
-        requirementIds: fileReqIds,
+        requirementIds: extracted.fileReqIds,
         contentHash: hashContent(fileSummary),
       },
     ]);
@@ -376,7 +231,7 @@ export async function extractCode(
       contentHash: string;
     }> = [];
 
-    for (const symbol of symbols) {
+    for (const symbol of extracted.symbols) {
       const symNodeId = `sym:${relPath}#${symbol.name}`;
       symbolCount++;
 
@@ -433,7 +288,7 @@ export async function extractCode(
         edgeCount++;
       }
 
-      // Requisitos citados dentro del cuerpo del símbolo (comentarios JSX).
+      // Requisitos citados dentro del cuerpo del símbolo (comentarios JSX / cuerpo).
       for (const reqId of symbol.bodyReqIds) {
         upsertEdge(db, {
           sourceId: symNodeId,
@@ -453,7 +308,7 @@ export async function extractCode(
     }
 
     // Requisitos citados a nivel de archivo.
-    for (const reqId of fileReqIds) {
+    for (const reqId of extracted.fileReqIds) {
       upsertEdge(db, {
         sourceId: fileNodeId,
         targetId: ensureRequirementNode(db, reqId, relPath),
@@ -464,9 +319,8 @@ export async function extractCode(
       edgeCount++;
     }
 
-    // Se registran los imports para el segundo pase: las aristas `depends_on`
-    // solo pueden crearse cuando todos los nodos de archivo existen.
-    importsByFile.push({ relPath, imports: collectImportTargets(sf, knownPaths) });
+    // Se registran los imports para el segundo pase.
+    importsByFile.push({ relPath, imports: extracted.importTargets });
   }
 
   // --- Pase 2: dependencias entre módulos (imports reales) ----------------
@@ -543,7 +397,7 @@ export async function extractCode(
     )
     .all() as Array<{ id: string; content: string; node_id: string }>;
 
-  for (const row of codeChunks) {
+  for (const _row of codeChunks) {
     chunkCount++;
   }
 
