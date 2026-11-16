@@ -1,7 +1,7 @@
 # Roadmap y Próximos Pasos — Nexo-Palace
 
-**Estado actual:** `@ijonydev/nexo-palace@0.1.1` (publicado en NPM)  
-**Última actualización:** 14 de Noviembre de 2026
+**Estado actual:** `@ijonydev/nexo-palace@0.2.0` (publicado en NPM)  
+**Última actualización:** 16 de Noviembre de 2026
 
 Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13.md](./session-audit-2025-11-13.md) y [README.md](../README.md), junto con la estrategia detallada para evolucionar la detección de requisitos y convenciones (`taste`) en la versión **`v0.2.0`**.
 
@@ -83,8 +83,10 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 ### T1 — Aristas tipadas por confianza (`EXTRACTED` vs `INFERRED`)
 - Añadir una distinción explícita en `edges` (`confidence` + `origin: 'extracted' | 'inferred'`) para que `memory_trace` informe con transparencia si un enlace proviene de una declaración explícita (`// @implements RF-001`) o de una deducción heurística/semántica.
 
-### T2 — Camino más corto entre entidades (`memory_path A B`)
-- Implementar en `src/trace.ts` una consulta recursiva (`WITH RECURSIVE` en SQLite) expuesta como herramienta MCP (`memory_path`) para responder *"¿Cómo se conecta X con Y?"* paso a paso (p. ej. componente UI → servicio → requisito → test).
+### T2 — Camino más corto entre entidades (`memory_path A B`) (Completado)
+- [x] Implementado en `src/trace.ts` mediante consulta recursiva (`WITH RECURSIVE` en SQLite con detección de ciclos BFS).
+- [x] Expuesto como herramienta MCP `memory_path` en `src/server.ts` y comando CLI `nexo-palace path <from> <to>` en `src/cli.ts`.
+- [x] Tests unitarios en `tests/unit/trace.test.ts` y `tests/unit/mcp-server.test.ts`.
 
 ### T3 — Exportación / sincronización Git-friendly
 - Añadir comandos `nxpl export` / `nxpl import` que vuelquen `episodes` (decisiones) y metadatos clave a un formato versionable en Git (JSONL comprimido o Markdown estructurado) para compartir memoria episódica entre desarrolladores al clonar el repo sin reindexar desde cero.

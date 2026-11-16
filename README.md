@@ -66,28 +66,64 @@ Antes de instalar Nexo-Palace, verifica contar con:
 
 ---
 
-## Instalación
+## Modalidades de Instalación y Uso
 
-### Instalación Rápida con Asistente Interactivo (Recomendada)
-En la raíz de cualquier proyecto que desees cartografiar:
+Nexo-Palace se adapta a diferentes flujos de trabajo según tus necesidades:
+
+### 1. Inicialización Zero-Config para Agentes de IA (Recomendada)
+La forma más rápida de equipar a cualquier asistente (Antigravity, Cursor, Claude Code, GitHub Copilot) en un proyecto existente sin modificar dependencias:
+
+```bash
+# 1. Configurar reglas multi-harness, plugin MCP y scripts en package.json
+npx -y @ijonydev/nexo-palace init-agent
+
+# 2. Cartografiar el repositorio y generar el grafo de memoria inicial
+npx @ijonydev/nexo-palace map
+```
+
+**¿Qué hace automáticamente?**
+- Detecta tus herramientas de agentes e inyecta reglas de memoria activa en `AGENTS.md`, `.cursor/rules/`, `CLAUDE.md` o `.github/copilot-instructions.md`.
+- Autoconfigura el plugin de workspace para Google Antigravity en `.agents/plugins/nexo-palace/` con servidor MCP zero-config vía `npx` y hook `SessionStart`.
+- Agrega scripts convenientes al `package.json` (`npm run palace:map`, `palace:drift`, `palace:stats`).
+- Configura Git hooks seguros opcionales (`post-commit` con mapeo y `pre-push` con drift detection).
+
+---
+
+### 2. Instalación Rápida con Asistente Interactivo (TUI)
+Ideal para configurar un proveedor de embeddings local o en la nube paso a paso:
 
 ```bash
 npx @ijonydev/nexo-palace setup
 ```
 El asistente interactivo:
-1. Detectará si tienes servicios locales corriendo (`litert`, `ollama`).
+1. Detectará si tienes servicios locales corriendo (`litert`, `ollama`) o si prefieres Gemini / modo offline.
 2. Te permitirá seleccionar el proveedor con las flechas del teclado (`↑`/`↓`) y confirmar con `Espacio` o `Enter`.
 3. Guardará la configuración protegida (`0600`) y te ofrecerá **cartografiar el proyecto de inmediato**.
 
 ---
 
-### Instalación como Dependencia en un Proyecto
+### 3. Registro Directo del Servidor MCP en Antigravity (`agy`)
+Si prefieres no tocar archivos del proyecto y solo habilitar las herramientas MCP en tu arnés de Antigravity:
+
+```bash
+# Registrar servidor MCP global o scoped
+agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
+
+# Indexar memoria del proyecto
+npx @ijonydev/nexo-palace map
+```
+
+---
+
+### 4. Instalación como Dependencia en el Proyecto
+Si deseas integrar los binarios en las herramientas de desarrollo de tu equipo o CI/CD:
 
 ```bash
 npm install --save-dev @ijonydev/nexo-palace
 ```
 
 Binarios disponibles tras instalar: **`nxpl`** (alias rápido) y **`nexo-palace`**.
+Puedes inicializar el proyecto con `npx nxpl init-agent` y mapear con `npm run palace:map`.
 
 ---
 
@@ -144,11 +180,17 @@ Si estás usando Claude Code, Cursor, Windsurf, Antigravity o CommandCode, puede
 
 ---
 
-## Configuración del proyecto
+## Configuración del proyecto y Autodescubrimiento
 
-Nexo-Palace está diseñado con **cero configuración obligatoria**: al ejecutar `npx nxpl map`, **El Arquitecto** autodescubre la estructura del repositorio:
+Nexo-Palace está diseñado con **cero configuración obligatoria**: al ejecutar `npx @ijonydev/nexo-palace map`, **El Arquitecto** autodescubre la estructura completa del repositorio:
 - **Documentación:** Escanea automáticamente cualquier archivo `.md` del proyecto desde la raíz (`["."]`) respetando las carpetas ignoradas (`ignoreDirs`).
-- **Código:** Detecta carpetas estándar (`src`, `lib`, `app`, `components`, `tests`, etc.) tanto en la raíz como en **subproyectos de primer nivel** (p. ej. `viz-app/src`, `packages/core/src`), con fallback a `["."]`.
+- **Código y Monorrepos:** Detecta carpetas estándar (`src`, `lib`, `app`, `components`, `shared`, `tools`, `utils`, `db`, `tests`, etc.) tanto en la raíz como en **monorrepos jerárquicos de 2º nivel** (p. ej. `apps/frontend/src`, `apps/backend/src`, `packages/core/src`, `modules/*/src`), ignorando automáticamente caches como `.angular`, `.nx` o `.tmp-harvest`.
+- **Extractores Políglotas Integrados:**
+  - **TypeScript & JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`):** Extrae funciones, clases, tipos, imports dinámicos y dependencias de componentes Angular (`@Component({ templateUrl, styleUrls })`).
+  - **Python (`.py`):** Árbol de sintaxis AST mediante `tree-sitter` extrayendo clases, funciones, docstrings y dependencias intra-paquete.
+  - **Plantillas HTML (`.html`, `.htm`):** Componentes personalizados (ej. `<app-*>` o `<p-*>`), referencias de formulario (`#form`) y enlace bidireccional con componentes companion.
+  - **Hojas de Estilo (`.css`, `.scss`, `.sass`, `.less`):** Selectores de clase, mixins (`@mixin`), keyframes y dependencias `@use`/`@import`.
+  - **Bases de Datos Relacionales (`.sql`):** Definiciones de tablas (`CREATE TABLE`), vistas, funciones, índices y claves foráneas (`REFERENCES`).
 - **Convenciones y Gustos (`taste`):** Detecta automáticamente directorios de convenciones y decisiones existentes, como `.commandcode/taste`, `docs/adr`, `docs/adrs` o `docs/decisions`.
 - **Requisitos multilingües:** Reconoce de serie prefijos en español e inglés (`RF`, `RNF`, `FR`, `NFR`, `HU`, `US`, `CU`, `UC`, `EPC`, `EPIC`, `REQ`, `TASK`, `TSK`, `ADR`, `RFC`, `SPEC`, `TC`, `CP`, `AC`, `CA`, `BUG`, `FIX`, `WP`) y aplica **normalización cruzada** automática (p. ej. `FR-001` → `RF-001`, `HU-101` → `US-101`, `UC-10` → `CU-10`).
 
@@ -161,15 +203,15 @@ Si tu proyecto necesita personalizar rutas, exclusiones o prefijos específicos,
   "docs": ["."],
   "tasteDirs": [".commandcode/taste", "docs/adr"],
 
-  "codeDirs": ["src", "viz-app/src"],
-  "codeExtensions": [".ts", ".tsx", ".js", ".jsx"],
+  "codeDirs": ["src", "apps", "packages", "tools", "shared"],
+  "codeExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".html", ".css", ".scss", ".less", ".sql"],
 
   "requirementPrefixes": ["RF", "RNF", "HU", "CU", "EPC", "US", "ADR", "REQ", "TASK"],
 
-  "decisionsFile": ".nexo-palace/decisions.md",
+  "decisionsFile": "docs/decisions.md",
   "dbPath": ".nexo-palace/memory.sqlite3",
 
-  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage"]
+  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage", ".angular", ".nx"]
 }
 ```
 
@@ -178,8 +220,8 @@ Si tu proyecto necesita personalizar rutas, exclusiones o prefijos específicos,
 | `projectName` | Nombre del proyecto en las descripciones del servidor MCP. | El nombre de la carpeta raíz. |
 | `docs` | Directorios o archivos individuales Markdown a cartografiar. | `["."]` (toda la doc del repo). |
 | `tasteDirs` | Directorios de convenciones y decisiones de equipo (`taste`). | Autodetecta `.commandcode/taste`, `docs/adr*`, `docs/decisions`. |
-| `codeDirs` | Directorios analizados por el extractor AST (`ts-morph`). | Autodetecta `src/`, `lib/`, etc. en raíz y subcarpetas. |
-| `codeExtensions` | Extensiones de código indexables en el grafo. | `[".ts", ".tsx", ".js", ".jsx"]` |
+| `codeDirs` | Directorios analizados por los extractores de código. | Autodetecta `src/`, monorrepos `apps/*/src`, `packages/*/src`, `tools`, etc. |
+| `codeExtensions` | Extensiones de código indexables en el grafo. | `[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".html", ".css", ".scss", ".less", ".sql"]` |
 | `requirementPrefixes` | Prefijos de trazabilidad reconocidos (`RF-01`, `US-101`…). | 24 prefijos estándar ES/EN con normalización cruzada. |
 | `decisionsFile` | Archivo Markdown donde se acumulan las decisiones registradas. | `docs/decisions.md` (o `.nexo-palace/decisions.md`). |
 | `dbPath` | Ruta de la base de datos SQLite y vectores. | `.nexo-palace/memory.sqlite3` |
@@ -253,13 +295,14 @@ agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
 
 > 💡 **Tip:** Ejecuta `npx @ijonydev/nexo-palace setup` para configuración guiada, o `npx @ijonydev/nexo-palace init-agent` para generar automáticamente reglas obligatorias (`.agents/rules/nexo-palace.md`, `.cursor/rules/nexo-palace.mdc`, `CLAUDE.md`, `.github/copilot-instructions.md`), el plugin de Antigravity con hook `SessionStart`, los scripts `palace:*` en `package.json` y Git hooks seguros (`post-commit` / `pre-push`).
 
-Expone seis herramientas:
+Expone siete herramientas:
 
 | Herramienta | Qué hace |
 | :--- | :--- |
 | `memory_query(query, scope?, limit?, pathPrefix?)` | Búsqueda híbrida sobre documentación, código, tests y convenciones. |
 | `memory_status()` | Estado del índice: proyecto activo, raíz resuelta, nodos, fragmentos, vectores y proveedor. |
 | `memory_trace(entity, depth?)` | Subgrafo de trazabilidad de un archivo o símbolo: requisitos, tests, documentos, convenciones y dependencias. |
+| `memory_path(from, to, maxHops?)` | Encuentra el camino más corto entre dos entidades en el grafo (BFS bidireccional con detección de ciclos). |
 | `memory_record_decision(context, decision, tags?, relatedFiles?)` | Persiste una decisión y la enlaza en el grafo y en el fichero de decisiones. |
 | `memory_map(provider?, allowProviderSwitch?)` | Reindexa cambios de código y documentación conservando el proveedor del índice. |
 | `memory_drift(baseRef?, dryRun?)` | Comprueba qué requisitos vinculados se ven afectados por cambios recientes en Git. |
