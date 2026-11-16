@@ -92,30 +92,65 @@ Before installing Nexo-Palace, ensure your environment meets the following requi
 
 ---
 
-## Installation
+## Installation and Adoption Modes
 
-### Interactive Quick Setup (Recommended)
+Nexo-Palace adapts to different workflows depending on your requirements:
 
-In the root of any repository you want to map:
+### 1. Zero-Config AI Agent Initialization (Recommended)
+The fastest way to equip any AI assistant (Antigravity, Cursor, Claude Code, GitHub Copilot) in an existing project without modifying dependencies:
+
+```bash
+# 1. Generate multi-harness rules, MCP workspace plugin, and npm scripts
+npx -y @ijonydev/nexo-palace init-agent
+
+# 2. Map the repository and generate the initial memory graph
+npx @ijonydev/nexo-palace map
+```
+
+**What does it do automatically?**
+- Detects your agent harnesses and injects active memory steering rules into `AGENTS.md`, `.cursor/rules/`, `CLAUDE.md`, or `.github/copilot-instructions.md`.
+- Autoconfigures a workspace plugin for Google Antigravity in `.agents/plugins/nexo-palace/` with zero-config MCP server via `npx` and a `SessionStart` bootstrap hook.
+- Adds convenient scripts to `package.json` (`npm run palace:map`, `palace:drift`, `palace:stats`).
+- Configures optional, safe Git hooks (`post-commit` with background mapping and `pre-push` with drift detection).
+
+---
+
+### 2. Interactive Quick Setup (TUI)
+Ideal for setting up a local or cloud embedding provider step-by-step:
 
 ```bash
 npx @ijonydev/nexo-palace setup
 ```
 
 The interactive wizard:
-1. Detects active local services (`litert`, `ollama`).
-2. Lets you select a provider with arrow keys (`↑`/`↓`) and confirm with `Space` or `Enter`.
+1. Detects whether you have local services running (`litert`, `ollama`) or prefer Gemini / offline mode.
+2. Lets you select a provider with keyboard arrows (`↑`/`↓`) and confirm with `Space` or `Enter`.
 3. Saves a protected configuration (`0600`) and offers to **map the project immediately**.
 
 ---
 
-### Project Dependency Installation
+### 3. Direct MCP Server Registration in Antigravity (`agy`)
+If you prefer not to touch project files and only want to enable MCP tools in your Antigravity harness:
+
+```bash
+# Register MCP server globally or scoped
+agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
+
+# Index the project memory
+npx @ijonydev/nexo-palace map
+```
+
+---
+
+### 4. Project Dependency Installation
+If you want to integrate the binaries into your team's development toolchain or CI/CD:
 
 ```bash
 npm install --save-dev @ijonydev/nexo-palace
 ```
 
 Available executables after installation: **`nxpl`** (fast alias) and **`nexo-palace`**.
+You can initialize the project with `npx nxpl init-agent` and map with `npm run palace:map`.
 
 ---
 
@@ -172,11 +207,17 @@ If you are using Claude Code, Cursor, Windsurf, Antigravity, or CommandCode, you
 
 ---
 
-## Project Configuration
+## Project Configuration and Autodiscovery
 
-Nexo-Palace is designed for **zero mandatory configuration**. When running `npx nxpl map`, **The Dream Architect** automatically discovers your project layout:
+Nexo-Palace is designed for **zero mandatory configuration**. When running `npx @ijonydev/nexo-palace map`, **The Dream Architect** automatically discovers your project layout:
 - **Documentation:** Automatically scans Markdown (`.md`) files from the repository root (`["."]`), respecting standard ignored folders (`ignoreDirs`).
-- **Code:** Detects common source folders (`src`, `lib`, `app`, `components`, `tests`, etc.) in the root and in **first-level subprojects** (e.g., `viz-app/src`, `packages/core/src`), with fallback to `["."]`.
+- **Code & Monorepos:** Detects standard folders (`src`, `lib`, `app`, `components`, `shared`, `tools`, `utils`, `db`, `tests`, etc.) in the root and in **hierarchical 2nd-level monorepos** (e.g., `apps/frontend/src`, `apps/backend/src`, `packages/core/src`, `modules/*/src`), automatically ignoring tool caches like `.angular`, `.nx`, or `.tmp-harvest`.
+- **Integrated Polyglot Extractors:**
+  - **TypeScript & JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`):** Extracts functions, classes, types, dynamic imports, and Angular component template/style dependencies (`@Component({ templateUrl, styleUrls })`).
+  - **Python (`.py`):** AST syntax tree parsing via `tree-sitter` extracting classes, functions, docstrings, and intra-package import dependencies.
+  - **HTML Templates (`.html`, `.htm`):** Custom components (e.g., `<app-*>` or `<p-*>`), template form references (`#form`), and bidirectional links with companion component code.
+  - **Stylesheets (`.css`, `.scss`, `.sass`, `.less`):** Class selectors, mixins (`@mixin`), keyframes, and `@use`/`@import` dependencies.
+  - **Relational Databases (`.sql`):** Table definitions (`CREATE TABLE`), views, functions, indexes, and foreign keys (`REFERENCES`).
 - **Conventions & Team Taste (`taste`):** Automatically locates existing architecture and convention directories like `.commandcode/taste`, `docs/adr`, `docs/adrs`, or `docs/decisions`.
 - **Multilingual Requirements:** Recognizes standard prefixes across Spanish and English (`RF`, `RNF`, `FR`, `NFR`, `HU`, `US`, `CU`, `UC`, `EPC`, `EPIC`, `REQ`, `TASK`, `TSK`, `ADR`, `RFC`, `SPEC`, `TC`, `CP`, `AC`, `CA`, `BUG`, `FIX`, `WP`) with automatic **cross-normalization** (e.g., `FR-001` → `RF-001`, `HU-101` → `US-101`, `UC-10` → `CU-10`).
 
@@ -189,15 +230,15 @@ If your project requires custom directories, exclusions, or custom prefixes, cre
   "docs": ["."],
   "tasteDirs": [".commandcode/taste", "docs/adr"],
 
-  "codeDirs": ["src", "viz-app/src"],
-  "codeExtensions": [".ts", ".tsx", ".js", ".jsx"],
+  "codeDirs": ["src", "apps", "packages", "tools", "shared"],
+  "codeExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".html", ".css", ".scss", ".less", ".sql"],
 
   "requirementPrefixes": ["RF", "RNF", "HU", "CU", "EPC", "US", "ADR", "REQ", "TASK"],
 
-  "decisionsFile": ".nexo-palace/decisions.md",
+  "decisionsFile": "docs/decisions.md",
   "dbPath": ".nexo-palace/memory.sqlite3",
 
-  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage"]
+  "ignoreDirs": ["node_modules", ".git", ".next", "dist", "build", "coverage", ".angular", ".nx"]
 }
 ```
 
@@ -206,8 +247,8 @@ If your project requires custom directories, exclusions, or custom prefixes, cre
 | `projectName` | Project name displayed in MCP descriptions. | Root directory name. |
 | `docs` | Directories or specific Markdown files to index. | `["."]` (all repo markdown). |
 | `tasteDirs` | Directories containing conventions and architecture decisions (`taste`). | Autodetects `.commandcode/taste`, `docs/adr*`, `docs/decisions`. |
-| `codeDirs` | Source code directories analyzed by the AST extractor (`ts-morph`). | Autodetects `src/`, `lib/`, etc., in root and subfolders. |
-| `codeExtensions` | File extensions indexed into the code graph. | `[".ts", ".tsx", ".js", ".jsx"]` |
+| `codeDirs` | Directories analyzed by the polyglot code extractors. | Autodetects `src/`, monorepos `apps/*/src`, `packages/*/src`, `tools`, etc. |
+| `codeExtensions` | File extensions indexed into the code graph. | `[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".html", ".css", ".scss", ".less", ".sql"]` |
 | `requirementPrefixes` | Recognized requirement prefixes (`RF-01`, `US-101`…). | 24 standard ES/EN prefixes with cross-normalization. |
 | `decisionsFile` | Markdown file where recorded decisions are appended. | `docs/decisions.md` (or `.nexo-palace/decisions.md`). |
 | `dbPath` | SQLite database and vector index storage path. | `.nexo-palace/memory.sqlite3` |
@@ -286,11 +327,14 @@ agy mcp add nexo-palace -- npx -y @ijonydev/nexo-palace serve
 
 #### Tools Exposed via MCP
 
+Exposes seven tools:
+
 | Tool | Description |
 | :--- | :--- |
 | `memory_query(query, scope?, limit?, pathPrefix?)` | Hybrid search across documentation, code symbols, unit tests, and conventions. |
 | `memory_status()` | Returns active project, resolved root, nodes, chunks, vectors, and embedding provider. |
 | `memory_trace(entity, depth?)` | Extracts the traceability subgraph for a file or symbol: requirements, tests, documents, conventions, and dependencies. |
+| `memory_path(from, to, maxHops?)` | Finds the shortest path between two entities in the graph (bidirectional BFS with cycle detection). |
 | `memory_record_decision(context, decision, tags?, relatedFiles?)` | Persists an architectural decision, links it in the graph, and appends it to the decisions file. |
 | `memory_map(provider?, allowProviderSwitch?)` | Reindexes code and documentation changes while preserving the index embedding provider. |
 | `memory_drift(baseRef?, dryRun?)` | Checks which linked requirements are affected by recent Git changes. |
