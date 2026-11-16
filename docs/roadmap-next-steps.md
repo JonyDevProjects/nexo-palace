@@ -125,6 +125,13 @@ Evitar que `src/markdown.ts` y `src/config.ts` crezcan con condicionales por cad
 - Definir interfaces ligeras `TasteDetector` y `RequirementDetector`.
 - Implementar cada estándar como un detector independiente (`commandcode-taste`, `cursor-mdc`, `agents-md`, `adr`, `markdown-checklist`), facilitando añadir soporte a nuevos ecosistemas o herramientas mediante plugins.
 
+### 4.6. Mapeo de Gobernanza de Workflow (Gitflow) y Adopción Proactiva en Harnesses
+Las convenciones de desarrollo (como Gitflow y Conventional Commits) deben ser asumidas de forma proactiva por los agentes, evitando la modificación directa sobre ramas de integración o producción:
+- **Indexación de `CONTRIBUTING.md` como nodo `taste`:** Clasificar automáticamente `CONTRIBUTING.md` (y guías de contribución equivalentes) con tipo `taste` (en lugar de `doc` genérico) para que sus directivas tengan prioridad en `memory_query` y consultas contextuales de convenciones.
+- **Inyección de directivas de branching en `init-agent`:** Ampliar `src/agent-integration.ts` para detectar si el proyecto utiliza Gitflow (ramas `develop`/`main`) e inyectar explícitamente en los archivos de reglas generados (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, etc.) la directiva de no editar código directamente en `develop`/`main`, obligando a ramificar en `feature/<nombre>` o `fix/<nombre>`.
+- **Consciencia de rama en el servidor MCP (`src/server.ts`):** Exponer la rama Git activa en `memory_status` e inyectar advertencias dinámicas de gobernanza en las `instructions` del protocolo MCP cuando el workspace apunte a ramas de integración o producción.
+- **Guardarraíles en Git Hooks (`init-agent --hooks`):** Incorporar protecciones opcionales en el hook `pre-commit` para advertir o bloquear commits directos sobre ramas protegidas sin pasar por ramas de feature dedicadas.
+
 ---
 
 ## 5. Visión a Largo Plazo (`v0.3.0+`)
