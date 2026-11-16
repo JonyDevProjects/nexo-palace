@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { initProject, resetConfig } from "../../src/config.ts";
@@ -48,5 +48,21 @@ describe("auto-discovery de docs y codeDirs", () => {
     walkFiles(md, isMarkdown, out);
     walkFiles(dir, isMarkdown, out);
     expect(out).toEqual([md]);
+  });
+
+  it("resuelve la raíz del proyecto desde el cwd del plugin (.agents/plugins/nexo-palace) aunque no exista nexo-palace.config.json", () => {
+    const dir = makeTempDir();
+    const pluginDir = join(dir, ".agents", "plugins", "nexo-palace");
+    mkdirSync(pluginDir, { recursive: true });
+    mkdirSync(join(dir, ".nexo-palace"), { recursive: true });
+
+    const prevCwd = process.cwd();
+    process.chdir(pluginDir);
+    try {
+      const cfg = initProject();
+      expect(cfg.root).toBe(realpathSync(dir));
+    } finally {
+      process.chdir(prevCwd);
+    }
   });
 });

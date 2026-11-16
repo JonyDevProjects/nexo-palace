@@ -29,3 +29,23 @@
 * **Decisión:** Se implemento soporte nativo de MCP Roots (roots/list y roots/list_changed), fix de ciclo de vida en cli.ts serve, herramientas MCP memory_map y memory_drift, modulo agent-integration con comando init-agent para reglas multi-harness (.agents, Cursor, Claude, Copilot), plugin Antigravity con SessionStart hook y Git hooks seguros con map --best-effort
 * **Archivos relacionados:** src/server.ts, src/cli.ts, src/map.ts, src/agent-integration.ts, src/installer.ts, src/drift.ts
 * **Episodio:** `decision:2026-11-15T23-27-05-604Z`
+### 2026-11-16 — mcp, self-hosting, npm, antigravity, config
+* **Contexto:** El plugin del workspace en el repo fuente usaba npx y colisionaba con el paquete local (exit 127), agy mcp add recibia flags inexistentes --arg=, y config.ts sin nexo-palace.config.json caia al cwd del plugin
+* **Decisión:** Se diferencio self-hosting via isSelfHostingRepo/resolveMcpServerConfig usando node directo sobre src/cli.ts serve en el repo fuente manteniendo npx zero-config en NPM; se corrigio agy mcp add con -- en installer y docs; se anadio fallback de raiz ascendente (.nexo-palace/.agents/.git) en config.ts; y se anadio salvaguarda CLI en hooks/reglas si memory_* no esta en herramientas MCP activas
+* **Archivos relacionados:** src/installer.ts, src/agent-integration.ts, src/config.ts, README.md, README.en.md, docs/mcp-npm-integration-finding.md
+* **Episodio:** `decision:2026-11-16T00-46-17-926Z`
+### 2026-11-16 — trazabilidad, grafo, mcp, caminos, t2
+* **Contexto:** Implementacion de T2 del roadmap v0.2.0: busqueda del camino mas corto entre entidades en el grafo de trazabilidad.
+* **Decisión:** Se implemento la funcion findPath en src/trace.ts empleando una consulta recursiva (WITH RECURSIVE) sobre SQLite que explora aristas bidireccionales con deteccion de ciclos en amplitud (BFS). Se expuso la herramienta MCP memory_path en src/server.ts en la superficie por defecto y el comando CLI nexo-palace path <from> <to> en src/cli.ts.
+* **Archivos relacionados:** src/trace.ts, src/server.ts, src/cli.ts, tests/unit/trace.test.ts, tests/unit/mcp-server.test.ts
+* **Episodio:** `decision:2026-11-16T01-18-55-409Z`
+### 2026-11-16 — arquitectura, poliglota, tree-sitter, python, extractores, ast
+* **Contexto:** Ampliación de Nexo-Palace hacia análisis políglota (v0.3.0) para soportar extracción de código y dependencias más allá de TypeScript/JavaScript.
+* **Decisión:** Se implementó una arquitectura extensible de extractores (LanguageExtractor y ExtractorRegistry) que desacopla ts-morph del pipeline central en src/extract-code.ts, e integra tree-sitter y tree-sitter-python para parsear archivos .py extrayendo funciones, clases, docstrings, comentarios contiguos, @implements y dependencias de imports relativos/absolutos. Se añadió .py a codeExtensions por defecto.
+* **Archivos relacionados:** src/extract-code.ts, src/extractors/types.ts, src/extractors/registry.ts, src/extractors/ts-extractor.ts, src/extractors/python-extractor.ts, src/config.ts
+* **Episodio:** `decision:2026-11-16T01-48-53-098Z`
+### 2026-11-16 — poliglota, angular, nestjs, monorepo, html, css, scss, sql, nx
+* **Contexto:** Soporte integral para los lenguajes y arquitectura del stack de proyectos fullstack y monorrepos Nx (como tfg-edwin: Angular, NestJS, Nx tools, plantillas HTML, estilos SCSS/CSS/Less y bases de datos SQL).
+* **Decisión:** Se implementaron extractores dedicados para HTML (HtmlExtractor con soporte de etiquetas de componentes, referencias de plantilla e imports companion), estilos (CssExtractor con clases, mixins, @use/@import y companion) y bases de datos relacionales (SqlExtractor con tablas, vistas, funciones, índices y foreign keys). Se amplió TsExtractor para soportar módulos .mjs, .cjs, .mts, .cts y resolución automática de dependencias Angular (@Component con templateUrl y styleUrls). Se dotó a detectCodeDirs de autodescubrimiento jerárquico de monorrepos (apps/*/src, packages/*/src, tools, shared, utils, db), y se añadieron .html, .css, .scss, .less, .sql, .mjs, .cjs a codeExtensions y .angular, .nx, .tmp-harvest a ignoreDirs.
+* **Archivos relacionados:** src/extractors/html-extractor.ts, src/extractors/css-extractor.ts, src/extractors/sql-extractor.ts, src/extractors/ts-extractor.ts, src/extractors/registry.ts, src/config.ts, src/extract-code.ts, tests/unit/polyglot-extractors.test.ts
+* **Episodio:** `decision:2026-11-16T02-08-30-000Z`

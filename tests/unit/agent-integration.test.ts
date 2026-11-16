@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectHarnesses,
@@ -193,5 +193,57 @@ describe("agent-integration", () => {
     expect(existsSync(join(dir, ".cursor", "rules", "nexo-palace.mdc"))).toBe(false);
     expect(existsSync(join(dir, "CLAUDE.md"))).toBe(false);
     expect(existsSync(join(dir, ".git", "hooks", "post-commit"))).toBe(false);
+  });
+
+  it("initAgentIntegration configura invocación local con node en el propio repositorio @ijonydev/nexo-palace", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, "bin"), { recursive: true });
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "@ijonydev/nexo-palace", scripts: {} }, null, 2),
+      "utf8",
+    );
+    writeFileSync(join(dir, "bin", "nexo-palace.js"), "#!/usr/bin/env node\n", "utf8");
+    writeFileSync(join(dir, "src", "cli.ts"), "// cli\n", "utf8");
+
+    const report = initAgentIntegration(dir, {
+      harnesses: ["antigravity", "cursor"],
+      gitHooks: false,
+    });
+
+    expect(report.palaceCommand).toBe("node bin/nexo-palace.js");
+
+    const mcpPath = join(dir, ".agents", "plugins", "nexo-palace", "mcp_config.json");
+    const mcpCfg = JSON.parse(readFileSync(mcpPath, "utf8")) as {
+      mcpServers: { "nexo-palace": { command: string; args: string[] } };
+    };
+    expect(mcpCfg.mcpServers["nexo-palace"].command).toBe("node");
+    expect(mcpCfg.mcpServers["nexo-palace"].args).toEqual([
+      "--experimental-strip-types",
+      "--no-warnings",
+      join(resolve(dir), "src", "cli.ts"),
+      "serve",
+    ]);
+
+    const pkgVersion = (JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      version: string;
+    }).version;
+    const pluginManifest = JSON.parse(
+      readFileSync(join(dir, ".agents", "plugins", "nexo-palace", "plugin.json"), "utf8"),
+    ) as { version: string };
+    expect(pluginManifest.version).toBe(pkgVersion);
+
+    const ruleMd = readFileSync(join(dir, ".agents", "rules", "nexo-palace.md"), "utf8");
+    expect(ruleMd).toContain("node bin/nexo-palace.js map");
+    expect(ruleMd).not.toContain("`nxpl map`");
+
+    const hookScript = join(dir, ".agents", "plugins", "nexo-palace", "hooks", "session-start.cjs");
+    const hookOut = spawnSync(process.execPath, [hookScript], {
+      input: JSON.stringify({ workspacePaths: [dir], cwd: dir }),
+      encoding: "utf8",
+    });
+    expect(hookOut.status).toBe(0);
+    expect(hookOut.stdout).toContain("node bin/nexo-palace.js");
   });
 });

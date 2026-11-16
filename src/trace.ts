@@ -354,7 +354,250 @@ export function traceEntity(entity: string, depth = 2, db: Db = openDb()): Trace
   };
 }
 
+/** Salto individual en el camino encontrado entre dos entidades. */
+export interface PathHop {
+  from: TraceNode;
+  to: TraceNode;
+  relation: string;
+  direction: "outgoing" | "incoming";
+  via?: string;
+}
+
+/** Resultado del camino más corto entre dos entidades. */
+export interface PathResult {
+  from: string;
+  to: string;
+  resolvedFrom: TraceNode | null;
+  resolvedTo: TraceNode | null;
+  candidatesFrom: TraceNode[];
+  candidatesTo: TraceNode[];
+  found: boolean;
+  hops: number;
+  nodes: TraceNode[];
+  edges: PathHop[];
+  explanation: string;
+}
+
 /**
- * Indica si la arista que une el nodo raíz con `otherId` sale del raíz.
- * Las dependencias son salientes; los dependientes, entrantes.
+ * Formatea una explicación legible paso a paso del camino recorrido.
  */
+function formatPathExplanation(nodes: TraceNode[], edges: PathHop[]): string {
+  if (nodes.length === 0) return "No se encontró camino.";
+  if (nodes.length === 1) return `${nodes[0].name} es la misma entidad.`;
+
+  const parts: string[] = [nodes[0].name || nodes[0].id];
+  for (let i = 0; i < edges.length; i++) {
+    const edge = edges[i];
+    const nextNode = nodes[i + 1];
+    const nextLabel = nextNode?.name || nextNode?.id || `[nodo ${i + 1}]`;
+    const viaText = edge.via ? ` via ${edge.via}` : "";
+    if (edge.direction === "outgoing") {
+      parts.push(`--(${edge.relation}${viaText})--> ${nextLabel}`);
+    } else {
+      parts.push(`<--(${edge.relation}${viaText})-- ${nextLabel}`);
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Encuentra el camino más corto entre dos entidades en el grafo de trazabilidad
+ * utilizando una consulta recursiva (`WITH RECURSIVE`) sobre SQLite.
+ */
+export function findPath(
+  from: string,
+  to: string,
+  maxHops = 6,
+  db: Db = openDb(),
+): PathResult {
+  const safeMaxHops = Math.max(1, Math.min(maxHops, 20));
+  const resFrom = resolveEntity(from, db);
+  const resTo = resolveEntity(to, db);
+
+  if (!resFrom.node || !resTo.node) {
+    let explanation = "";
+    if (!resFrom.node && !resTo.node) {
+      explanation = `No se pudieron resolver ni la entidad de origen ('${from}') ni la de destino ('${to}').`;
+    } else if (!resFrom.node) {
+      explanation =
+        resFrom.candidates.length > 0
+          ? `La entidad de origen ('${from}') es ambigua (${resFrom.candidates.length} candidatas).`
+          : `No se pudo resolver la entidad de origen ('${from}').`;
+    } else {
+      explanation =
+        resTo.candidates.length > 0
+          ? `La entidad de destino ('${to}') es ambigua (${resTo.candidates.length} candidatas).`
+          : `No se pudo resolver la entidad de destino ('${to}').`;
+    }
+    return {
+      from,
+      to,
+      resolvedFrom: resFrom.node ? toTraceNode(resFrom.node) : null,
+      resolvedTo: resTo.node ? toTraceNode(resTo.node) : null,
+      candidatesFrom: resFrom.candidates.map(toTraceNode),
+      candidatesTo: resTo.candidates.map(toTraceNode),
+      found: false,
+      hops: -1,
+      nodes: [],
+      edges: [],
+      explanation,
+    };
+  }
+
+  const fromNode = resFrom.node;
+  const toNode = resTo.node;
+
+  // Si ambas entidades resuelven al mismo nodo
+  if (fromNode.id === toNode.id) {
+    const traceNode = toTraceNode(fromNode);
+    return {
+      from,
+      to,
+      resolvedFrom: traceNode,
+      resolvedTo: traceNode,
+      candidatesFrom: [],
+      candidatesTo: [],
+      found: true,
+      hops: 0,
+      nodes: [traceNode],
+      edges: [],
+      explanation: `${traceNode.name} (${traceNode.id}) es la misma entidad.`,
+    };
+  }
+
+  const query = `
+    WITH RECURSIVE
+      graph_edges AS (
+        SELECT source_id AS src, target_id AS dst, relation, 'outgoing' AS direction, meta FROM edges
+        UNION ALL
+        SELECT target_id AS src, source_id AS dst, relation, 'incoming' AS direction, meta FROM edges
+      ),
+      paths(curr, path_nodes, path_edges, hops) AS (
+        SELECT
+          ? AS curr,
+          json_array(?),
+          json_array(),
+          0
+        UNION ALL
+        SELECT
+          ge.dst,
+          json_insert(p.path_nodes, '$[#]', ge.dst),
+          json_insert(
+            p.path_edges,
+            '$[#]',
+            json_object(
+              'from', ge.src,
+              'to', ge.dst,
+              'relation', ge.relation,
+              'direction', ge.direction,
+              'meta', ge.meta
+            )
+          ),
+          p.hops + 1
+        FROM paths p
+        JOIN graph_edges ge ON ge.src = p.curr
+        WHERE p.hops < ?
+          AND instr(p.path_nodes, '"' || ge.dst || '"') = 0
+      )
+    SELECT hops, path_nodes, path_edges FROM paths WHERE curr = ? ORDER BY hops ASC LIMIT 1;
+  `;
+
+  const row = db
+    .prepare(query)
+    .get(fromNode.id, fromNode.id, safeMaxHops, toNode.id) as
+    | { hops: number; path_nodes: string; path_edges: string }
+    | undefined;
+
+  if (!row) {
+    return {
+      from,
+      to,
+      resolvedFrom: toTraceNode(fromNode),
+      resolvedTo: toTraceNode(toNode),
+      candidatesFrom: resFrom.candidates.map(toTraceNode),
+      candidatesTo: resTo.candidates.map(toTraceNode),
+      found: false,
+      hops: -1,
+      nodes: [],
+      edges: [],
+      explanation: `No se encontró camino entre '${fromNode.name}' y '${toNode.name}' en hasta ${safeMaxHops} saltos.`,
+    };
+  }
+
+  const nodeIds = JSON.parse(row.path_nodes) as string[];
+  const rawEdges = JSON.parse(row.path_edges) as Array<{
+    from: string;
+    to: string;
+    relation: string;
+    direction: "outgoing" | "incoming";
+    meta: string | null;
+  }>;
+
+  const placeholders = nodeIds.map(() => "?").join(",");
+  const nodeRows = db
+    .prepare(
+      `SELECT id, type, path, name, title, status FROM nodes WHERE id IN (${placeholders})`,
+    )
+    .all(...nodeIds) as NodeRow[];
+  const nodeMap = new Map(nodeRows.map((r) => [r.id, toTraceNode(r)]));
+
+  const nodes: TraceNode[] = nodeIds.map(
+    (id) =>
+      nodeMap.get(id) ?? {
+        id,
+        type: "unknown",
+        path: null,
+        name: id,
+        title: null,
+        status: null,
+      },
+  );
+
+  const edges: PathHop[] = rawEdges.map((e) => {
+    let via: string | undefined;
+    if (e.meta) {
+      try {
+        via = (JSON.parse(e.meta).via as string) ?? undefined;
+      } catch {
+        // ignorar error de parseo en metadatos
+      }
+    }
+    return {
+      from: nodeMap.get(e.from) ?? {
+        id: e.from,
+        type: "unknown",
+        path: null,
+        name: e.from,
+        title: null,
+        status: null,
+      },
+      to: nodeMap.get(e.to) ?? {
+        id: e.to,
+        type: "unknown",
+        path: null,
+        name: e.to,
+        title: null,
+        status: null,
+      },
+      relation: e.relation,
+      direction: e.direction,
+      ...(via ? { via } : {}),
+    };
+  });
+
+  return {
+    from,
+    to,
+    resolvedFrom: toTraceNode(fromNode),
+    resolvedTo: toTraceNode(toNode),
+    candidatesFrom: resFrom.candidates.map(toTraceNode),
+    candidatesTo: resTo.candidates.map(toTraceNode),
+    found: true,
+    hops: row.hops,
+    nodes,
+    edges,
+    explanation: formatPathExplanation(nodes, edges),
+  };
+}
+
+export const tracePath = findPath;

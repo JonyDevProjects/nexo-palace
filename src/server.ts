@@ -33,14 +33,15 @@ import {
 import { recordDecision } from "./episodes.ts";
 import { runMap } from "./map.ts";
 import { search } from "./query.ts";
-import { traceEntity } from "./trace.ts";
+import { findPath, traceEntity } from "./trace.ts";
 
 /** Herramientas de la Fase 1 (búsqueda híbrida y estado del índice). */
 const PHASE1_TOOLS = ["memory_query", "memory_status"] as const;
 
-/** Herramientas de las Fases 2 y 3 (grafo de trazabilidad, decisiones, mapeo y deriva). */
+/** Herramientas de las Fases 2 y 3 (grafo de trazabilidad, caminos, decisiones, mapeo y deriva). */
 const PHASE23_TOOLS = [
   "memory_trace",
+  "memory_path",
   "memory_record_decision",
   "memory_map",
   "memory_drift",
@@ -189,7 +190,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
   const isEnabled = (name: string): boolean => enabled.has(name);
 
   const server = new McpServer(
-    { name: "nexo-palace", version: "0.1.4" },
+    { name: "nexo-palace", version: "0.2.0" },
     {
       capabilities: { tools: {} },
       instructions:
@@ -310,6 +311,37 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
         const trace = traceEntity(entity, depth ?? 2, ctx.db);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(trace, null, 2) }],
+        };
+      },
+    );
+  }
+
+  // --- memory_path ---------------------------------------------------------
+  if (isEnabled("memory_path")) {
+    server.registerTool(
+      "memory_path",
+      {
+        title: "Calcular el camino más corto entre dos entidades en el grafo",
+        description:
+          "Encuentra la ruta más corta entre dos entidades del proyecto (archivos, símbolos, requisitos o tests) " +
+          "utilizando el grafo de trazabilidad. Responde paso a paso cómo se conectan (p. ej. UI -> servicio -> requisito -> test).",
+        inputSchema: {
+          from: z.string().describe("Entidad origen (ruta, símbolo, id de requisito o test)."),
+          to: z.string().describe("Entidad destino (ruta, símbolo, id de requisito o test)."),
+          maxHops: z
+            .number()
+            .int()
+            .min(1)
+            .max(20)
+            .optional()
+            .describe("Máximo de saltos a explorar en el grafo (por defecto 6)."),
+        },
+      },
+      async ({ from, to, maxHops }) => {
+        await ensureSynced();
+        const result = findPath(from, to, maxHops ?? 6, ctx.db);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
         };
       },
     );

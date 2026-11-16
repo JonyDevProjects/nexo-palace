@@ -13,6 +13,7 @@
  *   4. El directorio actual, con los valores por defecto.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 /** Nombre del fichero de configuración del proyecto. */
@@ -73,8 +74,39 @@ interface RawConfig {
  */
 const DEFAULT_CONFIG: Omit<PalaceConfig, "root"> = {
   docs: ["."],
-  codeDirs: ["src", "lib", "app", "components", "tests", "test", "e2e"],
-  codeExtensions: [".ts", ".tsx", ".js", ".jsx"],
+  codeDirs: [
+    "src",
+    "lib",
+    "app",
+    "apps",
+    "packages",
+    "modules",
+    "components",
+    "shared",
+    "tools",
+    "utils",
+    "db",
+    "database",
+    "tests",
+    "test",
+    "e2e",
+  ],
+  codeExtensions: [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".mts",
+    ".cts",
+    ".py",
+    ".html",
+    ".css",
+    ".scss",
+    ".less",
+    ".sql",
+  ],
   tasteDirs: [],
   decisionsFile: "docs/decisions.md",
   dbPath: ".nexo-palace/memory.sqlite3",
@@ -90,6 +122,9 @@ const DEFAULT_CONFIG: Omit<PalaceConfig, "root"> = {
     "test-results",
     "playwright-report",
     ".vercel",
+    ".angular",
+    ".nx",
+    ".tmp-harvest",
   ],
   requirementPrefixes: [
     "RF",
@@ -138,6 +173,39 @@ export function findConfigFile(startDir: string): string | null {
     if (parent === dir) return null;
     dir = parent;
   }
+}
+
+/**
+ * Cuando un repositorio aún no tiene `nexo-palace.config.json` y el proceso arranca
+ * desde un subdirectorio (como `.agents/plugins/nexo-palace` en Antigravity), localiza
+ * la raíz real mediante marcadores ascendentes (`.nexo-palace`, `.agents` o `.git`),
+ * deteniéndose antes de `$HOME` o la raíz del sistema.
+ */
+function findFallbackProjectRoot(startDir: string): string | null {
+  const home = resolve(homedir());
+  let dir = resolve(startDir);
+  let agentsRoot: string | null = null;
+  let gitRoot: string | null = null;
+
+  for (;;) {
+    const parent = dirname(dir);
+    const isRootOrHome = parent === dir || dir === home;
+    if (!isRootOrHome) {
+      if (existsSync(join(dir, ".nexo-palace", "memory.sqlite3")) || existsSync(join(dir, ".nexo-palace"))) {
+        return dir;
+      }
+      if (!agentsRoot && existsSync(join(dir, ".agents"))) {
+        agentsRoot = dir;
+      }
+      if (!gitRoot && existsSync(join(dir, ".git"))) {
+        gitRoot = dir;
+      }
+    }
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return agentsRoot ?? gitRoot;
 }
 
 /** Lee y valida un fichero de configuración. */
@@ -195,28 +263,82 @@ function detectDecisionDirs(root: string): string[] {
 }
 
 /**
- * Detecta directorios de código estándar en la raíz o en subproyectos de primer nivel
- * (por ejemplo `viz-app/src` o `packages/core/src`). Si no encuentra ninguno,
- * devuelve `["."]` para indexar el código desde la raíz respetando `ignoreDirs`.
+ * Detecta directorios de código estándar en la raíz o en subproyectos de primer/segundo nivel
+ * (por ejemplo `src`, `apps/frontend/src`, `apps/backend/src`, `packages/core/src` o `tools`).
+ * Si no encuentra ninguno, devuelve `["."]` para indexar el código desde la raíz respetando `ignoreDirs`.
  */
 function detectCodeDirs(root: string, ignoreDirs: string[]): string[] {
   const found: string[] = [];
+  const seen = new Set<string>();
 
+  const add = (dir: string) => {
+    if (!seen.has(dir) && existsSync(join(root, dir))) {
+      seen.add(dir);
+      found.push(dir);
+    }
+  };
+
+  // 1. Directorios estándar en la raíz (src, lib, app, tools, shared, utils, etc.)
   for (const dir of DEFAULT_CONFIG.codeDirs) {
-    if (existsSync(join(root, dir))) found.push(dir);
+    if (["apps", "packages", "modules"].includes(dir)) {
+      // Contenedores de monorrepos: se exploran sus hijos abajo para mayor granularidad
+      continue;
+    }
+    add(dir);
   }
 
+  // 2. Subproyectos de nivel 1 (ej. viz-app/src) y monorrepos de nivel 2 (ej. apps/frontend/src)
   try {
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       if (entry.name.startsWith(".") || ignoreDirs.includes(entry.name)) continue;
+
+      // Nivel 1: <entry>/<subDir> (ej. backend/src)
       for (const sub of DEFAULT_CONFIG.codeDirs) {
-        const rel = `${entry.name}/${sub}`;
-        if (existsSync(join(root, rel))) found.push(rel);
+        if (["apps", "packages", "modules"].includes(sub)) continue;
+        add(`${entry.name}/${sub}`);
+      }
+
+      // Si es un contenedor de monorrepo (apps, packages, modules), explorar nivel 2
+      if (["apps", "packages", "modules"].includes(entry.name)) {
+        try {
+          const subEntries = readdirSync(join(root, entry.name), { withFileTypes: true });
+          for (const subEntry of subEntries) {
+            if (
+              !subEntry.isDirectory() ||
+              subEntry.name.startsWith(".") ||
+              ignoreDirs.includes(subEntry.name)
+            ) {
+              continue;
+            }
+            // Comprobar subdirectorios estándar (ej. apps/frontend/src)
+            let matchedSub = false;
+            for (const sub of ["src", "lib", "app", "components", "tests", "test", "e2e"]) {
+              const candidate = `${entry.name}/${subEntry.name}/${sub}`;
+              if (existsSync(join(root, candidate))) {
+                add(candidate);
+                matchedSub = true;
+              }
+            }
+            // Si la app no tiene 'src/', añadir la carpeta de la app directamente
+            if (!matchedSub) {
+              add(`${entry.name}/${subEntry.name}`);
+            }
+          }
+        } catch {
+          // Ignorar errores de subdirectorio
+        }
       }
     }
   } catch {
     // Ignorar errores de lectura de directorio
+  }
+
+  // Si no se encontró ningún subdirectorio específico pero existe apps/ o packages/, añadir contenedor
+  if (found.length === 0) {
+    for (const container of ["apps", "packages", "modules"]) {
+      add(container);
+    }
   }
 
   return found.length > 0 ? found : ["."];
@@ -290,7 +412,7 @@ export function initProject(options: { root?: string; config?: string } = {}): P
       raw = readConfigFile(found);
       root = explicitRoot ? resolve(explicitRoot) : dirname(found);
     } else {
-      root = startDir;
+      root = explicitRoot ? resolve(explicitRoot) : (findFallbackProjectRoot(startDir) ?? startDir);
     }
   }
 
