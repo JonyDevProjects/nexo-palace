@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-11-16
+
+### Added
+- **Polyglot Code Extraction & Modular Registry (`src/extractors/`):**
+  - Introduced `ExtractorRegistry` and `LanguageExtractor` contract, completely decoupling AST processing from `ts-morph` and the core pipeline.
+  - Added **`PythonExtractor`** powered by `tree-sitter` and `tree-sitter-python` for extracting Python functions, classes, methods, docstrings, `@implements` directives and intra-package import graphs.
+  - Added **`HtmlExtractor`** for Angular templates and web components (`.html`, `.htm`), extracting custom tags (`<app-*>`, `<p-*>`), template references (`#form`), requirements and companion `.ts`/stylesheet links.
+  - Added **`CssExtractor`** for stylesheets (`.css`, `.scss`, `.sass`, `.less`), extracting class selectors, mixins (`@mixin`), `@keyframes`, `@use`/`@import` rules and companion `.ts` component links.
+  - Added **`SqlExtractor`** for relational schemas and migrations (`.sql`), extracting `CREATE TABLE`, `CREATE VIEW`, `CREATE FUNCTION/PROCEDURE`, `CREATE INDEX`, foreign key references and requirements.
+  - Enhanced **`TsExtractor`** to support `.mjs`, `.cjs`, `.mts`, `.cts` and automatic resolution of Angular `@Component` metadata (`templateUrl` and `styleUrls`/`styleUrl`) into the `depends_on` dependency graph.
+- **Deep Hierarchical Monorepo Autodiscovery (`src/config.ts`):**
+  - Enhanced `detectCodeDirs` with 2-level traversal for monorepos (`apps/*/src`, `packages/*/src`, `modules/*/src`, `tools`, `shared`, `utils`, `db`) discovering complex project structures without manual configuration.
+  - Expanded `codeExtensions` defaults to include `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.py`, `.html`, `.css`, `.scss`, `.less`, `.sql`.
+  - Added `.angular`, `.nx`, and `.tmp-harvest` to default `ignoreDirs`.
+- **Shortest Path Tool & Query in Knowledge Graph (T2 - `src/trace.ts`, `src/server.ts`, `src/cli.ts`):**
+  - Implemented `findPath` using breadth-first search (BFS) with cycle detection via SQLite recursive common table expressions (`WITH RECURSIVE`).
+  - Added **`memory_path`** tool to MCP tool surface (`from`, `to`, `maxHops`).
+  - Added `nexo-palace path <from> <to>` CLI command.
+- **Self-Hosting Workspace Plugin Resilience (`src/installer.ts`, `src/config.ts`):**
+  - Differentiated development repo from consumer npm packages (`isSelfHostingRepo`) to prevent npx collision in local workspaces.
+  - Fixed `agy mcp add` flag syntax with `--` argument separator.
+  - Added `findFallbackProjectRoot` resolving upward project root markers.
+
+---
+
 ## [0.1.4] - 2026-11-16
 
 ### Added
