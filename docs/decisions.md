@@ -49,3 +49,18 @@
 * **Decisión:** Se implementaron extractores dedicados para HTML (HtmlExtractor con soporte de etiquetas de componentes, referencias de plantilla e imports companion), estilos (CssExtractor con clases, mixins, @use/@import y companion) y bases de datos relacionales (SqlExtractor con tablas, vistas, funciones, índices y foreign keys). Se amplió TsExtractor para soportar módulos .mjs, .cjs, .mts, .cts y resolución automática de dependencias Angular (@Component con templateUrl y styleUrls). Se dotó a detectCodeDirs de autodescubrimiento jerárquico de monorrepos (apps/*/src, packages/*/src, tools, shared, utils, db), y se añadieron .html, .css, .scss, .less, .sql, .mjs, .cjs a codeExtensions y .angular, .nx, .tmp-harvest a ignoreDirs.
 * **Archivos relacionados:** src/extractors/html-extractor.ts, src/extractors/css-extractor.ts, src/extractors/sql-extractor.ts, src/extractors/ts-extractor.ts, src/extractors/registry.ts, src/config.ts, src/extract-code.ts, tests/unit/polyglot-extractors.test.ts
 * **Episodio:** `decision:2026-11-16T02-08-30-000Z`
+### 2026-11-16 — roadmap, calidad, prompts, code-smells, ast
+* **Contexto:** Añadir tarea de investigacion al roadmap de Nexo-Palace sobre deteccion de malas practicas como hardcodear prompts en codigo.
+* **Decisión:** Se anadio la seccion 4.7 en docs/roadmap-next-steps.md especificando analisis AST de literales de strings, clasificacion lexica y semantica de prompts, trazabilidad de code smells en el grafo y herramientas de refactor hacia Markdown/JSON externos.
+* **Archivos relacionados:** docs/roadmap-next-steps.md
+* **Episodio:** `decision:2026-11-16T23-58-49-383Z`
+### 2026-11-17 — roadmap, optimizacion, tokens, harnesses, mcp, dx
+* **Contexto:** Inclusion en el roadmap de la tarea 4.8 para optimizar el coste de tokens y la calidad de respuestas de agentes mediante mejor direccionamiento de tools MCP y payloads compactos.
+* **Decisión:** Se anadio la seccion 4.8 a docs/roadmap-next-steps.md detallando: enrutamiento por intencion en directivas y SessionStart hook, desduplicacion de decisiones en parseAsDecisions, enriquecimiento operativo de memory_status con Git y ultimas decisiones, y compactacion de payloads en memory_trace y memory_query.
+* **Archivos relacionados:** docs/roadmap-next-steps.md, src/agent-integration.ts, src/server.ts, src/trace.ts, src/query.ts, src/ingest-docs.ts
+* **Episodio:** `decision:2026-11-17T10-06-36-181Z`
+### 2026-11-17 — bugfix, mcp, antigravity, roots, sqlite
+* **Contexto:** Error ENOENT mkdir '/.nexo-palace' durante initialize en Antigravity IDE al lanzar el servidor MCP con process.cwd()='/'.
+* **Decisión:** Se difirio la apertura de SQLite y del proveedor de embeddings en src/server.ts hasta la primera invocacion de herramienta tras completar el handshake MCP y consultar roots/list. Ademas se añadieron isSystemRoot e isUnsafeWorkspaceRoot en src/config.ts para omitir detectCodeDirs en '/' y devolver warning/error controlado si el cliente no reporta roots validos.
+* **Archivos relacionados:** src/server.ts, src/config.ts, tests/unit/mcp-server.test.ts, tests/unit/config.test.ts, src/test-mcp.ts
+* **Episodio:** `decision:2026-11-17T13-14-28-102Z`

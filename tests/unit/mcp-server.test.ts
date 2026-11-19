@@ -265,4 +265,86 @@ describe("MCP server dynamic roots, map & drift safeguards", () => {
     await client.close();
     await server.close();
   });
+
+  it("arranca desde la raíz del sistema ('/') sin crear /.nexo-palace y re-vincula vía MCP roots/list", async () => {
+    delete process.env.NEXO_PALACE_ROOT;
+    delete process.env.NEXO_PALACE_CONFIG;
+
+    const projectDir = makeTempDir("proj-from-root-");
+    writeFileSync(
+      join(projectDir, "nexo-palace.config.json"),
+      JSON.stringify({ projectName: "agy-workspace" }),
+      "utf8",
+    );
+    writeFileSync(join(projectDir, "README.md"), "# Workspace\n\n## RF-10\n\nSoporte raíces.\n", "utf8");
+
+    const sysRoot = process.platform === "win32" ? "C:\\" : "/";
+    const prevCwd = process.cwd();
+    process.chdir(sysRoot);
+
+    try {
+      const server = await startServer({ connectTransport: false });
+      const client = new Client(
+        { name: "test-agy-root-client", version: "0.1.0" },
+        { capabilities: { roots: { listChanged: true } } },
+      );
+
+      client.setRequestHandler(ListRootsRequestSchema, async () => ({
+        roots: [{ uri: pathToFileURL(projectDir).href, name: "workspace" }],
+      }));
+
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+      const statusRes = await client.callTool({ name: "memory_status", arguments: {} });
+      const statusText = (statusRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+      const status = JSON.parse(statusText) as { projectName: string; projectRoot: string };
+      expect(status.projectName).toBe("agy-workspace");
+      expect(status.projectRoot).toBe(projectDir);
+
+      await client.close();
+      await server.close();
+    } finally {
+      process.chdir(prevCwd);
+    }
+  });
+
+  it("desde '/' sin roots/list devuelve warning en memory_status y error controlado en herramientas de índice", async () => {
+    delete process.env.NEXO_PALACE_ROOT;
+    delete process.env.NEXO_PALACE_CONFIG;
+
+    const sysRoot = process.platform === "win32" ? "C:\\" : "/";
+    const prevCwd = process.cwd();
+    process.chdir(sysRoot);
+
+    try {
+      const server = await startServer({ connectTransport: false });
+      const client = new Client(
+        { name: "test-no-roots-client", version: "0.1.0" },
+        { capabilities: {} },
+      );
+
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+      const statusRes = await client.callTool({ name: "memory_status", arguments: {} });
+      const statusText = (statusRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+      const status = JSON.parse(statusText) as { nodes: number; warning?: string };
+      expect(status.nodes).toBe(0);
+      expect(status.warning).toContain("no es un repositorio de proyecto válido");
+
+      const queryRes = await client.callTool({
+        name: "memory_query",
+        arguments: { query: "algo" },
+      });
+      expect(queryRes.isError).toBe(true);
+      const queryText = (queryRes.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+      expect(queryText).toContain("roots/list");
+
+      await client.close();
+      await server.close();
+    } finally {
+      process.chdir(prevCwd);
+    }
+  });
 });

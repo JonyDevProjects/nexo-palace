@@ -6,7 +6,6 @@
  * el canal del protocolo MCP y no puede contaminarse con logs.
  */
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -18,6 +17,8 @@ import {
   findConfigFile,
   getConfig,
   initProject,
+  isSystemRoot,
+  isUnsafeWorkspaceRoot,
   loadEnv,
   OFFLINE_EMBEDDING_DIM,
   type PalaceConfig,
@@ -125,10 +126,15 @@ export interface StartServerOptions {
 /** Estado vivo del proyecto enlazado al servidor MCP. */
 interface ServerContext {
   config: PalaceConfig;
-  db: Db;
-  provider: EmbeddingProvider;
+  db: Db | null;
+  provider: EmbeddingProvider | null;
   hasExplicitRoot: boolean;
 }
+
+type ToolTextResult = {
+  isError?: boolean;
+  content: Array<{ type: "text"; text: string }>;
+};
 
 /** Extrae `--root` y `--config` de `process.argv` cuando se invoca directo. */
 function argvRootOptions(): { root?: string; config?: string } {
@@ -156,12 +162,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
   initProject({ root: explicitRoot, config: explicitConfig });
   loadEnv();
 
+  // La apertura de SQLite se difiere hasta después del handshake MCP para que
+  // clientes GUI que arrancan con cwd="/" (p. ej. Antigravity IDE) completen
+  // `initialize` y reporten el workspace real vía `roots/list` antes de tocar disco.
   const initialConfig = getConfig();
-  const initialDb = openDb();
   const ctx: ServerContext = {
     config: initialConfig,
-    db: initialDb,
-    provider: resolveQueryProvider(initialDb),
+    db: null,
+    provider: null,
     hasExplicitRoot: Boolean(explicitRoot || explicitConfig),
   };
 
@@ -175,8 +183,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
     initProject({ root: resolvedNext });
     loadEnv();
     ctx.config = getConfig();
-    ctx.db = openDb();
-    ctx.provider = resolveQueryProvider(ctx.db);
+    ctx.db = null;
+    ctx.provider = null;
     process.stderr.write(
       `[nexo-palace] workspace actualizado vía MCP roots: ${ctx.config.projectName} (${ctx.config.root})\n`,
     );
@@ -186,15 +194,64 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
     if (pendingRootSync) await pendingRootSync;
   }
 
+  function workspaceRootWarning(): string | null {
+    const root = resolve(ctx.config.root);
+    if (isSystemRoot(root) || (!ctx.hasExplicitRoot && isUnsafeWorkspaceRoot(root))) {
+      return (
+        `El servidor apunta a '${ctx.config.root}', que no es un repositorio de proyecto válido. ` +
+        "Verifica que no haya NEXO_PALACE_ROOT fijo, que el cliente MCP abra una carpeta de proyecto con `roots/list` o pasa `--root <ruta>`."
+      );
+    }
+    return null;
+  }
+
+  async function ensureReady(): Promise<{ db: Db; provider: EmbeddingProvider }> {
+    await ensureSynced();
+    const warning = workspaceRootWarning();
+    if (warning) {
+      throw new Error(warning);
+    }
+    if (!ctx.db) {
+      ctx.db = openDb();
+    }
+    if (!ctx.provider) {
+      ctx.provider = resolveQueryProvider(ctx.db);
+    }
+    return { db: ctx.db, provider: ctx.provider };
+  }
+
+  async function withReadyContext(
+    fn: (ready: { db: Db; provider: EmbeddingProvider }) => Promise<ToolTextResult> | ToolTextResult,
+  ): Promise<ToolTextResult> {
+    try {
+      const ready = await ensureReady();
+      return await fn(ready);
+    } catch (err) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ error: (err as Error).message }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
   const enabled = enabledTools();
   const isEnabled = (name: string): boolean => enabled.has(name);
+
+  const projectLabel = isUnsafeWorkspaceRoot(ctx.config.root)
+    ? "del proyecto activo"
+    : `del proyecto ${ctx.config.projectName}`;
 
   const server = new McpServer(
     { name: "nexo-palace", version: "0.2.0" },
     {
       capabilities: { tools: {} },
       instructions:
-        `Memoria activa del proyecto ${ctx.config.projectName}. PROTOCOLO DE USO:\n` +
+        `Memoria activa ${projectLabel}. PROTOCOLO DE USO:\n` +
         "1. ANTES de explorar a ciegas con find/grep o abrir varios archivos, usa `memory_query` para localizar requisitos (`EPC`, `US`, `RF`), arquitectura y convenciones (`taste`), y `memory_trace` sobre archivos clave.\n" +
         "2. Al tomar decisiones técnicas, de diseño o resolver bugs complejos, usa `memory_record_decision`.\n" +
         "3. Tras modificar código o documentación, usa `memory_map` para sincronizar el índice y `memory_drift` para revisar impacto en requisitos.",
@@ -252,42 +309,42 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
           pathPrefix: z.string().optional().describe("Acota a rutas que empiezan por este prefijo (p. ej. 'docs/')."),
         },
       },
-      async ({ query, scope, limit, pathPrefix }) => {
-        await ensureSynced();
-        const results = await search(
-          query,
-          ctx.provider,
-          {
-            scope: scope ?? "all",
-            limit: limit ?? 8,
-            pathPrefix,
-          },
-          ctx.db,
-        );
+      async ({ query, scope, limit, pathPrefix }) =>
+        withReadyContext(async ({ db, provider }) => {
+          const results = await search(
+            query,
+            provider,
+            {
+              scope: scope ?? "all",
+              limit: limit ?? 8,
+              pathPrefix,
+            },
+            db,
+          );
 
-        const payload = {
-          project: ctx.config.projectName,
-          root: ctx.config.root,
-          query,
-          count: results.length,
-          provider: ctx.provider.name,
-          results: results.map((r) => ({
-            path: r.path,
-            nodeType: r.nodeType,
-            title: r.title,
-            headerPath: r.headerPath,
-            status: r.status,
-            score: r.score,
-            literalMatch: r.literal,
-            requirementIds: r.requirementIds,
-            content: r.content,
-          })),
-        };
+          const payload = {
+            project: ctx.config.projectName,
+            root: ctx.config.root,
+            query,
+            count: results.length,
+            provider: provider.name,
+            results: results.map((r) => ({
+              path: r.path,
+              nodeType: r.nodeType,
+              title: r.title,
+              headerPath: r.headerPath,
+              status: r.status,
+              score: r.score,
+              literalMatch: r.literal,
+              requirementIds: r.requirementIds,
+              content: r.content,
+            })),
+          };
 
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-        };
-      },
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -306,13 +363,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
           depth: z.number().int().min(1).max(3).optional().describe("Profundidad del recorrido (por defecto 2)."),
         },
       },
-      async ({ entity, depth }) => {
-        await ensureSynced();
-        const trace = traceEntity(entity, depth ?? 2, ctx.db);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(trace, null, 2) }],
-        };
-      },
+      async ({ entity, depth }) =>
+        withReadyContext(({ db }) => {
+          const trace = traceEntity(entity, depth ?? 2, db);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(trace, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -337,13 +394,13 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
             .describe("Máximo de saltos a explorar en el grafo (por defecto 6)."),
         },
       },
-      async ({ from, to, maxHops }) => {
-        await ensureSynced();
-        const result = findPath(from, to, maxHops ?? 6, ctx.db);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        };
-      },
+      async ({ from, to, maxHops }) =>
+        withReadyContext(({ db }) => {
+          const result = findPath(from, to, maxHops ?? 6, db);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -364,19 +421,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
           relatedFiles: z.array(z.string()).optional().describe("Archivos o requisitos relacionados."),
         },
       },
-      async ({ context, decision, tags, relatedFiles }) => {
-        await ensureSynced();
-        // Se usa el proveedor del índice: si se creara otro, el embedding de la
-        // decisión no sería comparable con los vectores ya almacenados.
-        const episode = await recordDecision(
-          { context, decision, tags, relatedFiles },
-          ctx.db,
-          ctx.provider,
-        );
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(episode, null, 2) }],
-        };
-      },
+      async ({ context, decision, tags, relatedFiles }) =>
+        withReadyContext(async ({ db, provider }) => {
+          // Se usa el proveedor del índice: si se creara otro, el embedding de la
+          // decisión no sería comparable con los vectores ya almacenados.
+          const episode = await recordDecision(
+            { context, decision, tags, relatedFiles },
+            db,
+            provider,
+          );
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(episode, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -400,30 +457,30 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
             .describe("Solo true si deseas reconstruir los vectores con otro proveedor distinto."),
         },
       },
-      async ({ provider, allowProviderSwitch }) => {
-        await ensureSynced();
-        const result = await runMap({
-          db: ctx.db,
-          provider,
-          allowProviderSwitch,
-          bestEffort: !provider,
-        });
-        if (result.provider) {
-          ctx.provider = result.provider;
-        }
-        const payload = {
-          skipped: result.skipped,
-          reason: result.reason ?? null,
-          projectName: result.projectName,
-          root: result.root,
-          docs: result.docs ?? null,
-          code: result.code ?? null,
-          stats: result.stats,
-        };
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-        };
-      },
+      async ({ provider, allowProviderSwitch }) =>
+        withReadyContext(async ({ db }) => {
+          const result = await runMap({
+            db,
+            provider,
+            allowProviderSwitch,
+            bestEffort: !provider,
+          });
+          if (result.provider) {
+            ctx.provider = result.provider;
+          }
+          const payload = {
+            skipped: result.skipped,
+            reason: result.reason ?? null,
+            projectName: result.projectName,
+            root: result.root,
+            docs: result.docs ?? null,
+            code: result.code ?? null,
+            stats: result.stats,
+          };
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -444,16 +501,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
             .describe("Si es true (por defecto), consulta sin marcar nodos como NEEDS_REVIEW."),
         },
       },
-      async ({ baseRef, dryRun }) => {
-        await ensureSynced();
-        const result = detectDrift(
-          { baseRef, mark: dryRun === false },
-          ctx.db,
-        );
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        };
-      },
+      async ({ baseRef, dryRun }) =>
+        withReadyContext(({ db }) => {
+          const result = detectDrift(
+            { baseRef, mark: dryRun === false },
+            db,
+          );
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          };
+        }),
     );
   }
 
@@ -469,18 +526,35 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
       },
       async () => {
         await ensureSynced();
-        const stats = indexStats(ctx.db);
-        const home = resolve(homedir());
-        const configFile = findConfigFile(ctx.config.root);
-        let warning: string | null = null;
-        if (ctx.config.root === "/" || ctx.config.root === home) {
-          warning =
-            `El servidor apunta a '${ctx.config.root}', que no parece ser un repositorio de proyecto. ` +
-            "Verifica que no haya NEXO_PALACE_ROOT fijo y que el cliente MCP abra el proyecto en su raíz.";
-        } else if (stats.nodes === 0) {
-          warning =
-            "El índice del proyecto está vacío (0 nodos). Ejecuta memory_map o `nxpl map` para cartografiar el repositorio.";
+        const rootWarning = workspaceRootWarning();
+        if (rootWarning) {
+          const payload = {
+            projectName: ctx.config.projectName || null,
+            projectRoot: ctx.config.root,
+            configFile: null,
+            dbPath: ctx.config.dbPath,
+            nodes: 0,
+            edges: 0,
+            chunks: 0,
+            vectors: 0,
+            byType: [],
+            provider: null,
+            dim: null,
+            indexedAt: null,
+            warning: rootWarning,
+          };
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+          };
         }
+
+        const { db } = await ensureReady();
+        const stats = indexStats(db);
+        const configFile = findConfigFile(ctx.config.root);
+        const warning =
+          stats.nodes === 0
+            ? "El índice del proyecto está vacío (0 nodos). Ejecuta memory_map o `nxpl map` para cartografiar el repositorio."
+            : null;
 
         const payload = {
           projectName: ctx.config.projectName,
@@ -500,8 +574,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Mcp
   if (options.connectTransport !== false) {
     const transport = new StdioServerTransport();
     await server.connect(transport);
+    const startupProject = isUnsafeWorkspaceRoot(ctx.config.root)
+      ? "(pendiente de roots)"
+      : ctx.config.projectName;
     process.stderr.write(
-      `[nexo-palace] servidor MCP listo — proyecto: ${ctx.config.projectName} (${ctx.config.root}), proveedor: ${ctx.provider.name} (dim ${ctx.provider.dim})\n` +
+      `[nexo-palace] servidor MCP listo — proyecto: ${startupProject} (${ctx.config.root}), proveedor: ${ctx.provider ? `${ctx.provider.name} (dim ${ctx.provider.dim})` : "diferido"}\n` +
         `[nexo-palace] herramientas activas: ${Array.from(enabled).join(", ")}\n`,
     );
   }

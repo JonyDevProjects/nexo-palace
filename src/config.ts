@@ -262,12 +262,33 @@ function detectDecisionDirs(root: string): string[] {
   });
 }
 
+/** Indica si `dir` apunta a la raíz del sistema de archivos (p. ej. `/` o `C:\`). */
+export function isSystemRoot(dir: string): boolean {
+  const abs = resolve(dir);
+  return dirname(abs) === abs;
+}
+
+/**
+ * Indica si `dir` es una raíz insegura o inválida como proyecto implícito
+ * (la raíz del sistema o `$HOME` sin configuración explícita de Nexo-Palace).
+ */
+export function isUnsafeWorkspaceRoot(dir: string): boolean {
+  const abs = resolve(dir);
+  if (isSystemRoot(abs)) return true;
+  if (abs === resolve(homedir())) {
+    return !existsSync(join(abs, CONFIG_FILENAME)) && !existsSync(join(abs, ".nexo-palace"));
+  }
+  return false;
+}
+
 /**
  * Detecta directorios de código estándar en la raíz o en subproyectos de primer/segundo nivel
  * (por ejemplo `src`, `apps/frontend/src`, `apps/backend/src`, `packages/core/src` o `tools`).
  * Si no encuentra ninguno, devuelve `["."]` para indexar el código desde la raíz respetando `ignoreDirs`.
  */
 function detectCodeDirs(root: string, ignoreDirs: string[]): string[] {
+  if (isSystemRoot(root)) return [];
+
   const found: string[] = [];
   const seen = new Set<string>();
 

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { initProject, resetConfig } from "../../src/config.ts";
+import { initProject, isSystemRoot, isUnsafeWorkspaceRoot, resetConfig } from "../../src/config.ts";
 import { walkFiles, isMarkdown } from "../../src/util.ts";
 
 describe("auto-discovery de docs y codeDirs", () => {
@@ -64,5 +64,18 @@ describe("auto-discovery de docs y codeDirs", () => {
     } finally {
       process.chdir(prevCwd);
     }
+  });
+
+  it("detecta la raíz del sistema como insegura y evita escanear directorios del SO en detectCodeDirs", () => {
+    const sysRoot = process.platform === "win32" ? "C:\\" : "/";
+    expect(isSystemRoot(sysRoot)).toBe(true);
+    expect(isUnsafeWorkspaceRoot(sysRoot)).toBe(true);
+
+    const dir = makeTempDir();
+    expect(isSystemRoot(dir)).toBe(false);
+    expect(isUnsafeWorkspaceRoot(dir)).toBe(false);
+
+    const cfg = initProject({ root: sysRoot });
+    expect(cfg.codeDirs).toEqual([]);
   });
 });

@@ -18,10 +18,11 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { closeDb, openDb } from "./db.ts";
 import { initProject, resetConfig } from "./config.ts";
 import { extractCode } from "./extract-code.ts";
@@ -408,6 +409,34 @@ async function main(): Promise<void> {
       pluginStatusPayload.projectName,
     );
     await pluginClient.close();
+
+    // --- CLI `serve` lanzado desde raíz del sistema ('/') con MCP roots -------
+    const sysRoot = process.platform === "win32" ? "C:\\" : "/";
+    const rootCwdTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: ["--experimental-strip-types", "--no-warnings", CLI, "serve"],
+      cwd: sysRoot,
+      stderr: "pipe",
+      env: envWithoutRoot,
+    });
+    const rootCwdClient = new Client(
+      { name: "palace-root-cwd-test", version: "0.1.0" },
+      { capabilities: { roots: { listChanged: true } } },
+    );
+    rootCwdClient.setRequestHandler(ListRootsRequestSchema, async () => ({
+      roots: [{ uri: pathToFileURL(fixtureRoot).href, name: "fixture-workspace" }],
+    }));
+    await rootCwdClient.connect(rootCwdTransport);
+    const rootCwdStatus = await rootCwdClient.callTool({ name: "memory_status", arguments: {} });
+    const rootCwdStatusText =
+      (rootCwdStatus.content as Array<{ type: string; text?: string }>)[0]?.text ?? "";
+    const rootCwdStatusPayload = JSON.parse(rootCwdStatusText) as { projectName: string };
+    check(
+      "cli.ts serve desde cwd='/' completa initialize y re-vincula vía roots/list",
+      rootCwdStatusPayload.projectName === "fixture-test",
+      rootCwdStatusPayload.projectName,
+    );
+    await rootCwdClient.close();
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });
   }
