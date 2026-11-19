@@ -134,6 +134,48 @@ Las convenciones de desarrollo (como Gitflow y Conventional Commits) deben ser a
 - **Consciencia de rama en el servidor MCP (`src/server.ts`):** Exponer la rama Git activa en `memory_status` e inyectar advertencias dinámicas de gobernanza en las `instructions` del protocolo MCP cuando el workspace apunte a ramas de integración o producción.
 - **Guardarraíles en Git Hooks (`init-agent --hooks`):** Incorporar protecciones opcionales en el hook `pre-commit` para advertir o bloquear commits directos sobre ramas protegidas sin pasar por ramas de feature dedicadas.
 
+### 4.7. Detección de Malas Prácticas en Implementaciones de Agentes (Prompt Hardcoding & AST Smells)
+Los agentes de IA y desarrolladores de soluciones basadas en LLMs incurren frecuentemente en malas prácticas de implementación, tales como **hardcodear prompts, system prompts o directivas Markdown directamente en el cuerpo de funciones** (por ejemplo, arrays de cadenas concatenadas con `.join("\n")` o template literals extensos, como en `buildAgentProtocolMarkdown` en `src/agent-integration.ts`).
+
+Esta práctica incrementa la deuda técnica, eleva el consumo innecesario de tokens al leer código fuente, entorpece la internacionalización/versionado de instrucciones y acopla la lógica de negocio con la formulación de prompts. Investigar cómo la memoria activa y el motor de Nexo-Palace pueden detectar y guiar la resolución de este anti-patrón:
+
+- **Detección Estática en el Grafo AST (`src/extract-code.ts`):**
+  - Identificar literales de cadena multilinea de longitud significativa (>150-200 caracteres), arrays extensos de strings o template literals masivos dentro de declaraciones de funciones y constantes exportadas.
+  - Calcular la densidad texto/código (ratio de caracteres textuales frente a sentencias lógicas ejecutables).
+- **Clasificación Híbrida de Prompts y Directivas:**
+  - **Heurística léxica:** Detección de patrones canónicos de prompts para LLMs (encabezados `#`, listas de directivas en modo imperativo, menciones a herramientas MCP, marcadores de contexto o roles `<system>`, etc.).
+  - **Similitud semántica vectorial:** Clasificar bloques sospechosos frente a un espacio de embeddings calibrado para instrucciones/prompts frente a constantes o mensajes de error habituales.
+- **Registro de Hallazgos y Trazabilidad en el Grafo:**
+  - Modelar advertencias de calidad o anti-patrones (`code_smell:hardcoded_prompt`) asociados al nodo del símbolo infractor en SQLite, accesibles desde `memory_trace` y el comando de drift/gobernanza.
+- **Estrategias de Refactorización Asistida:**
+  - Guiar a los agentes y desarrolladores para extraer prompts a recursos externos desacoplados:
+    - Archivos Markdown dedicados (ej. `prompts/*.md`, `templates/*.md`) con interpolación de variables.
+    - Catálogos estructurados en JSON/YAML (`prompts.json`) que faciliten versionado y gobernanza.
+  - Ofrecer utilidades de referencia o resolución dinámica en tiempo de ejecución.
+- **Superficie MCP y CLI de Calidad (`nxpl audit` / `memory_audit`):**
+  - Evaluar la exposición de una herramienta MCP de auditoría que los agentes puedan ejecutar antes de cerrar sus tareas, validando que el código recién escrito respete las directivas arquitectónicas y no introduzca prompts hardcodeados.
+
+### 4.8. Optimización de Eficiencia, Coste de Tokens y Calidad de Respuestas en Harnesses (Tool Steering & Payload Compactness)
+A partir de la comparativa empírica de consumo y precisión de respuestas entre agentes para consultas de estado y arquitectura, se identificó un patrón de ineficiencia por sobre-uso de herramientas y dispersión de contexto (hasta +20% en tokens y degradación de frescura):
+
+- **Enrutamiento por Intención en Directivas y Protocolos (`src/agent-integration.ts`, `src/server.ts`):**
+  - Actualizar `buildAgentProtocolMarkdown` y las `instructions` del `McpServer` con una matriz clara de decisión:
+    - *Estado y salud operativa:* Prescribir `memory_status` + `memory_drift` combinados con verificación en vivo (`git log`, `npm test`, `typecheck`). Evitar expresamente invocar `memory_trace` para preguntas de estado general.
+    - *Búsqueda documental dirigida:* Guiar a usar `memory_query(query, scope: "doc", limit: 3)` para localizar specs o roadmaps, evitando lecturas especulativas a ciegas (`Read(ROADMAP.md)`) o comandos de búsqueda manual (`find`).
+    - *Exploración de código:* Prescribir `memory_trace` con `depth: 1` acotado exclusivamente a archivos y símbolos concretos.
+  - Actualizar el hook `SessionStart` (`buildAntigravitySessionHookScript`) con una chuleta explícita de subcomandos CLI (`stats`, `drift`, `query --scope`, `trace --depth 1`) para evitar lecturas intermedias de `SKILL.md` o `--help`.
+- **Desduplicación y Fidelidad de Decisiones (`src/ingest-docs.ts`, `src/episodes.ts`):**
+  - Extraer en `parseAsDecisions` el ID original de la línea `* **Episodio:** \`decision:...\`` en `docs/decisions.md` para evitar duplicar nodos (`decision:<fecha>:<titulo>` frente a `decision:<timestamp>`) en `nodes` y `chunks`.
+  - Purgar la saturación de fragmentos idénticos en las respuestas de `memory_trace` y `memory_query`.
+- **Enriquecimiento Operativo de `memory_status` y `stats` (`src/server.ts`, `src/db.ts`):**
+  - Incorporar en el payload de `memory_status` información viva y compacta del proyecto: rama Git activa, estado del árbol de trabajo (`dirty`), último commit (`HEAD`), versión en `package.json`, distribución de requisitos por estado (`done`, `draft`, `NEEDS_REVIEW`) y títulos de las últimas 3 decisiones registradas.
+  - Resolver consultas de estado global en una única llamada MCP compacta sin necesidad de múltiples consultas suplementarias.
+- **Compactación de Respuestas y Control de Verbosidad (`src/trace.ts`, `src/query.ts`, `src/server.ts`):**
+  - Ajustar la profundidad por defecto de `memory_trace` a `depth: 1` y acotar menciones débiles (`via: "path-mention"` en `documents`) para eliminar respuestas de +250 líneas.
+  - Exponer y documentar oficialmente `scope: "decision"` en el schema MCP de `memory_query`.
+  - Añadir soporte de ordenación temporal (`sort: "recent" | "relevance"`) y flag `includeContent: false` en `memory_query` para recuperar listados de referencias ultraligeros (-80% tokens) antes de decidir qué fragmento inspeccionar en detalle.
+  - Aclarar en el schema de `memory_trace` qué entidades son trazables (excluyendo manifiestos JSON como `package.json` para evitar consultas fallidas).
+
 ---
 
 ## 5. Visión a Largo Plazo (`v0.3.0+`)
