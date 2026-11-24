@@ -11,6 +11,7 @@ import {
   isTestPath,
 } from "../../src/extract-code.ts";
 import {
+  BashExtractor,
   createDefaultRegistry,
   CssExtractor,
   ExtractorRegistry,
@@ -37,7 +38,7 @@ describe("Extractores políglotas y stack Angular / NestJS / Fullstack (Fase 2)"
   });
 
   describe("ExtractorRegistry", () => {
-    it("registra y resuelve extractores para todo el stack (TS/JS/MJS/CJS, Python, HTML, CSS/SCSS/Less, SQL)", () => {
+    it("registra y resuelve extractores para todo el stack (TS/JS/MJS/CJS, Python, HTML, CSS/SCSS/Less, SQL, Shell/Bash)", () => {
       const registry = createDefaultRegistry();
       expect(registry.getSupportedExtensions()).toEqual(
         expect.arrayContaining([
@@ -55,6 +56,9 @@ describe("Extractores políglotas y stack Angular / NestJS / Fullstack (Fase 2)"
           ".scss",
           ".less",
           ".sql",
+          ".sh",
+          ".bash",
+          ".zsh",
         ]),
       );
 
@@ -66,6 +70,9 @@ describe("Extractores políglotas y stack Angular / NestJS / Fullstack (Fase 2)"
       expect(registry.getExtractorForPath("apps/frontend/src/app/login.component.scss")).toBeInstanceOf(CssExtractor);
       expect(registry.getExtractorForPath("apps/frontend/src/app/style.less")).toBeInstanceOf(CssExtractor);
       expect(registry.getExtractorForPath("db/schema.sql")).toBeInstanceOf(SqlExtractor);
+      expect(registry.getExtractorForPath("scripts/setup.sh")).toBeInstanceOf(BashExtractor);
+      expect(registry.getExtractorForPath("scripts/deploy.bash")).toBeInstanceOf(BashExtractor);
+      expect(registry.getExtractorForPath("scripts/env.zsh")).toBeInstanceOf(BashExtractor);
     });
   });
 
@@ -379,6 +386,14 @@ CREATE INDEX idx_users_email ON users(email);
         "utf8",
       );
 
+      // Shell script .sh
+      mkdirSync(join(dir, "scripts"), { recursive: true });
+      writeFileSync(
+        join(dir, "scripts", "setup.sh"),
+        `#!/bin/bash\n# @implements RF-17\nfunction run_setup() { echo ok; }\n`,
+        "utf8",
+      );
+
       initProject({
         root: dir,
         dbPath: join(dir, "memory.sqlite3"),
@@ -408,6 +423,9 @@ CREATE INDEX idx_users_email ON users(email);
       const toolNode = db.prepare("SELECT * FROM nodes WHERE id = ?").get("code:tools/sync.mjs");
       expect(toolNode).toBeDefined();
 
+      const shNode = db.prepare("SELECT * FROM nodes WHERE id = ?").get("code:scripts/setup.sh");
+      expect(shNode).toBeDefined();
+
       // Comprobar enlace Angular: user.component.ts -> user.component.html y .scss
       const linkHtml = db.prepare(
         "SELECT * FROM edges WHERE source_id = ? AND target_id = ? AND relation = 'depends_on'",
@@ -424,6 +442,11 @@ CREATE INDEX idx_users_email ON users(email);
         "SELECT * FROM edges WHERE source_id = ? AND target_id = 'req:RF-13' AND relation = 'implements'",
       ).get("code:apps/frontend/src/user.component.html");
       expect(reqEdge).toBeDefined();
+
+      const shReqEdge = db.prepare(
+        "SELECT * FROM edges WHERE source_id = ? AND target_id = 'req:RF-17' AND relation = 'implements'",
+      ).get("code:scripts/setup.sh");
+      expect(shReqEdge).toBeDefined();
     });
   });
 });

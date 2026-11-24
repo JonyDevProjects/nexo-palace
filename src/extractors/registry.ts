@@ -1,6 +1,7 @@
 /**
  * Nexo-Palace Engine — Registro central de extractores de lenguaje.
  */
+import { BashExtractor } from "./bash-extractor.ts";
 import { CssExtractor } from "./css-extractor.ts";
 import { HtmlExtractor } from "./html-extractor.ts";
 import { PythonExtractor } from "./python-extractor.ts";
@@ -49,5 +50,6 @@ export function createDefaultRegistry(): ExtractorRegistry {
   registry.register(new HtmlExtractor());
   registry.register(new CssExtractor());
   registry.register(new SqlExtractor());
+  registry.register(new BashExtractor());
   return registry;
 }
