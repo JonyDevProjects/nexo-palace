@@ -47,6 +47,13 @@ Este documento consolida todo lo pendiente recogido en [session-audit-2025-11-13
 - [x] Gráfica comparativa vectorial SVG en [`docs/assets/benchmark-comparison.svg`](./assets/benchmark-comparison.svg) y reporte generado en [`docs/benchmarks/P5-agent-benchmark-results.md`](./benchmarks/P5-agent-benchmark-results.md).
 - [x] Documentación y métricas integradas en `README.md` y `README.en.md` (-84.1% tokens, -74.1% coste, 3x velocidad, +17.3 pts precisión).
 
+### P6 — Extractor de Scripts Shell / Bash (`BashExtractor` — Issue #1)
+- [x] Especificación técnica formal en [`docs/specs/P6-bash-extractor.md`](./specs/P6-bash-extractor.md).
+- [x] Integrar `tree-sitter-bash` y nuevo `BashExtractor` en `src/extractors/bash-extractor.ts`.
+- [x] Soporte para extensiones `.sh`, `.bash`, `.zsh` en `DEFAULT_CONFIG.codeExtensions` y `createDefaultRegistry()`.
+- [x] Detección de funciones, variables exportadas, sourcing (`source`, `.`) y requisitos (`@implements`).
+- [x] Cobertura de tests unitarios en `tests/unit/bash-extractor.test.ts` y pruebas de integración políglota.
+
 #### Casos de prueba estándar para el Benchmark y Verificación MCP:
 
 1. **Prueba de consulta de requisitos y decisiones (`memory_query`):**

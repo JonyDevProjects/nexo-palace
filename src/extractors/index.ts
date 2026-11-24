@@ -8,3 +8,4 @@ export * from "./python-extractor.ts";
 export * from "./html-extractor.ts";
 export * from "./css-extractor.ts";
 export * from "./sql-extractor.ts";
+export * from "./bash-extractor.ts";
